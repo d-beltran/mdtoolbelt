@@ -28,10 +28,10 @@ chainer_parser.add_argument(
     "-is", "--input_structure", required=True,
     help="Path to input structure file (pdb)")
 chainer_parser.add_argument(
-    "-sel", "--atom_selection", required=True,
+    "-sel", "--atom_selection",
     help="Atoms to be chained")
 chainer_parser.add_argument(
-    "-chn", "--chain_letter", required=True,
+    "-chn", "--chain_letter",
     help="The chain letter to be set in selected atoms")
 chainer_parser.add_argument(
     "-os", "--output_structure",
