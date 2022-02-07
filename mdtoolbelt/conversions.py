@@ -5,7 +5,7 @@ from inspect import getfullargspec
 
 from .formats import get_format, get_format_set_suitable_function
 from .vmd_spells import vmd_to_pdb
-from .gmx_spells import get_tpr_structure
+from .gmx_spells import get_tpr_structure, gmx_convert_trajectory
 from .mdt_spells import convert_traj
 
 # Set functions to performe structure conversions
@@ -17,7 +17,7 @@ structure_converting_functions = [ get_tpr_structure, vmd_to_pdb ]
 # Set functions to performe trajectory conversions
 # These functions must have 'input_trajectory_filename' and 'output_trajectory_filename' keywords
 # These functions must have the 'format_sets' property
-trajectory_converting_functions = [ convert_traj ]
+trajectory_converting_functions = [ convert_traj, gmx_convert_trajectory ]
 
 # Handle conversions of different structure and trajectory formats
 # Inputs are the original strucutre and/or trajectory files and the list of possible output filenames
