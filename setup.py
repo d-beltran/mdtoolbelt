@@ -16,9 +16,6 @@ setup(
         "Bug Tracker": "https://github.com/d-beltran/mdtoolbelt/issues",
     },
     packages=['mdtoolbelt'],
-    install_requires=[
-        'python_version >= "3.6"',
-    ],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -28,4 +25,5 @@ setup(
             'mdtb = mdtoolbelt.console:call'
         ]
     },
+    python_requires=">=3.6",
 )

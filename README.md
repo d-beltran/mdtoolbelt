@@ -2,7 +2,7 @@
 
 Tools por MD post-processing
 
-These tools may be used both from the terminal or from python.
+**Important**: PIP only installs the package. All the dependencies must be installed separately. To perform a complete installation, please use ANACONDA.
 
 
 ## Conversions
