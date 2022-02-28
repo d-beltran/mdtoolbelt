@@ -190,13 +190,18 @@ class Structure:
     # Select atoms from the structure thus generating an atom indices list
     # Different tools may be used to make the selection:
     # - prody (default)
-    def select (self, selection_string : str, logic : str = 'prody') -> 'Selection':
+    def select (self, selection_string : str, logic : str = 'prody') -> Optional['Selection']:
         if logic == 'prody':
             prody_selection = self.prody_topology.select(selection_string)
+            if not prody_selection:
+                print('WARNING: Empty selection')
+                return None
             return Selection.from_prody(prody_selection)
     
     # Create a new structure from the current using a selection to filter atoms
     def filter (self, selection : 'Selection') -> 'Structure':
+        if not selection:
+            raise SystemExit('No selection was passed')
         new_atoms = []
         new_residues = []
         new_chains = []
