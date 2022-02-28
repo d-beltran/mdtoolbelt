@@ -144,6 +144,8 @@ class Structure:
     # Use ProDy to do so
     @classmethod
     def from_pdb_file(cls, pdb_filename : str):
+        if not os.path.exists(pdb_filename):
+            raise SystemExit('File "' + pdb_filename + '" not found')
         prody_topology = prody.parsePDB(pdb_filename)
         return cls.from_prody(prody_topology)
 
