@@ -9,6 +9,9 @@ class Selection:
     def __repr__ (self):
         return '<Selection (' + str(len(self.atom_indices)) + ' atoms)>'
 
+    def __len__ (self):
+        return len(self.atom_indices)
+
     @classmethod
     def from_prody (cls, prody_selection):
         indexes = [ atom.getIndex() for atom in prody_selection.iterAtoms() ]
