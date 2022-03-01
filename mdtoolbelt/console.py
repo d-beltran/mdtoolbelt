@@ -1,7 +1,7 @@
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 from .conversions import convert
-from .manual_tools import chainer
+from .vmd_spells import chainer
 
 # Define console call for mdtoolbelt
 parser = ArgumentParser(description="Call a tool from mdtoolbelt", formatter_class=RawTextHelpFormatter)
