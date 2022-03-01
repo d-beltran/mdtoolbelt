@@ -1,0 +1,47 @@
+{% set name = "mdtoolbelt" %}
+{% set version = "0.0.2" %}
+
+package:
+  name: "{{ name|lower }}"
+  version: "{{ version }}"
+
+source:
+  url: "https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
+  sha256: "86efb596c2964c45da5c0659ff720ebc41da2c481647f0ee9b6e69d979269dcc"
+
+build:
+  number: 0
+  entry_points:
+    - mdtb = mdtoolbelt.console:call
+  script: "{{ PYTHON }} -m pip install . --no-deps --ignore-installed -vv "
+
+requirements:
+  host:
+    - pip
+    - python
+  run:
+    - gromacs
+    - mdtraj
+    - prody
+    - python >=3.7,<3.8.0a0
+    - vmd
+
+
+test:
+  imports:
+    - mdtoolbelt
+  commands:
+    - mdtb --help
+
+about:
+  home: "https://github.com/d-beltran/mdtoolbelt"
+  license: "MIT"
+  license_family: "MIT"
+  license_file: ""
+  summary: "Tools por MD post-processing"
+  doc_url: ""
+  dev_url: ""
+
+extra:
+  recipe-maintainers:
+    - your-github-id-here
