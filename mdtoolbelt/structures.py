@@ -157,7 +157,7 @@ class Structure:
                 residue = atom.residue
                 index = str(a+1).rjust(5)
                 name =  ' ' + atom.name.ljust(3) if len(atom.name) < 4 else atom.name
-                residue_name = residue.name.ljust(3)
+                residue_name = residue.name.ljust(4)
                 chain = atom.chain.name.rjust(1)
                 residue_number = str(residue.number).rjust(4)
                 icode = residue.icode.rjust(1)
@@ -166,7 +166,7 @@ class Structure:
                 occupancy = '1.00' # Just a placeholder
                 temp_factor = '0.00' # Just a placeholder
                 element = atom.element
-                atom_line = ('ATOM  ' + index + ' ' + name + ' ' + residue_name + ' '
+                atom_line = ('ATOM  ' + index + ' ' + name + ' ' + residue_name
                     + chain + residue_number + icode + '   ' + x_coord + y_coord + z_coord
                     + '  ' + occupancy + '  ' + temp_factor + ' ' + element).ljust(80) + '\n'
                 file.write(atom_line)
