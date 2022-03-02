@@ -2,6 +2,8 @@ import os
 from subprocess import run, PIPE
 import mdtraj as mdt
 
+from .formats import get_format
+
 # Multiple files may be selected with bash syntax (e.g. *.dcd)
 # Tested supported input formats are .dcd
 # Tested supported output formats are .xtc
@@ -86,3 +88,44 @@ get_trajectory_subset.format_sets = [
         }
     }
 ]
+
+# Split a trajectory which is actually a merge of independent trajectories back to the original pieces
+# Run an RMSD analysis to guess where the pieces are
+# The cutoff sets the minimum RMSD change to consider it is a different trajectory
+def split_merged_trajectories (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    sudden_jump_cutoff : float = 0.2,
+    output_trajectory_prefix : str = 'split'):
+    # Get the input trajectory format
+    input_trajectory_format = get_format(input_trajectory_filename)
+    # The cutoff must be a negative number since independent trajectories RMSD sudden jumps will be negative
+    cutoff = -abs(sudden_jump_cutoff)
+    # Load the trajectory
+    trajectory = mdt.load(input_trajectory_filename, top=input_structure_filename)
+    # Run a RMSD analysis
+    rmsd_data = mdt.rmsd(trajectory, trajectory, 0)
+    # Find sudden jumps in RMSD values
+    sudden_jumps = []
+    previous_value = 0
+    for i, value in enumerate(rmsd_data):
+        diff = value - previous_value
+        # In case this is a new trajectory the jump will be negative
+        if diff < cutoff:
+            print('New trajectory at frame ' + str(i))
+            sudden_jumps.append(i)
+        previous_value = value
+    # In there was no jumps then stop here
+    if len(sudden_jumps) == 0:
+        print('Apparently there is a single trajectory')
+        return
+    # Generate a trajectory subset for each cut
+    cut_points = [ 0, *sudden_jumps, len(rmsd_data) ]
+    for i in range(len(cut_points) -1):
+        start = cut_points[i]
+        end = cut_points[i+1]
+        trajectory_split = trajectory[start:end]
+        split_filename = output_trajectory_prefix + '_' + str(i+1) + '.' + input_trajectory_format
+        print('Writting from frame ' + str(start) + ' to frame ' + str(end) + ' to "' + split_filename + '"')
+        trajectory_split.save(split_filename)
+    

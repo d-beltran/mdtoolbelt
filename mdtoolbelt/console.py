@@ -2,6 +2,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 
 from .conversions import convert
 from .vmd_spells import chainer
+from .mdt_spells import split_merged_trajectories
 
 # Define console call for mdtoolbelt
 parser = ArgumentParser(description="Call a tool from mdtoolbelt", formatter_class=RawTextHelpFormatter)
@@ -37,7 +38,20 @@ chainer_parser.add_argument(
     "-os", "--output_structure",
     help="Path to output structure file (pdb)")
 
-
+# The split command
+split_parser = subparsers.add_parser("split")
+split_parser.add_argument(
+    "-is", "--input_structure", required=True,
+    help="Path to input structure file")
+split_parser.add_argument(
+    "-it", "--input_trajectory",
+    help="Path to input trajectory file")
+split_parser.add_argument(
+    "-cut", "--cutoff", type=float, default=0.2,
+    help="The minimum size of the RMSD jump to consider it is a different trajectory")
+split_parser.add_argument(
+    "-otp", "--output_trajectory_prefix", default="split",
+    help="Prefix for the path to output trajectory files")
 
 args = parser.parse_args()
 
@@ -70,6 +84,14 @@ def call():
             atom_selection=args.atom_selection,
             chain_letter=args.chain_letter,
             output_pdb_filename=args.output_structure
+        )
+
+    if tool == 'split':
+        split_merged_trajectories(
+            input_structure_filename=args.input_structure,
+            input_trajectory_filename=args.input_trajectory,
+            sudden_jump_cutoff=args.cutoff,
+            output_trajectory_prefix=args.output_trajectory_prefix
         )
 
     # Tool will always match one of the previous defined options
