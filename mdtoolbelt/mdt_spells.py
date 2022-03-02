@@ -1,6 +1,6 @@
 import os
 from subprocess import run, PIPE
-import mdtraj as md
+import mdtraj as mdt
 
 # Multiple files may be selected with bash syntax (e.g. *.dcd)
 # Tested supported input formats are .dcd
@@ -49,7 +49,7 @@ def get_trajectory_subset (
         end = start + 1
 
     # Load the trajectory frame by frame and get only the desired frames
-    trajectory = md.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
+    trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
     # Get the first chunk
     reduced_trajectory = None
     for i, chunk in enumerate(trajectory):
@@ -62,7 +62,7 @@ def get_trajectory_subset (
         if i == relative_end:
             break
         if i % step == 0:
-            reduced_trajectory = md.join([reduced_trajectory, chunk], check_topology=False)
+            reduced_trajectory = mdt.join([reduced_trajectory, chunk], check_topology=False)
 
     # Write reduced trajectory to output file
     reduced_trajectory.save(output_trajectory_filename)
