@@ -49,7 +49,7 @@ gmx_get_first_frame.format_sets = [
             'input_trajectory_filename': {'xtc', 'trr'}
         },
         'outputs': {
-            'output_structure_filename': {'pdb', 'gro'}
+            'output_frame_filename': {'pdb', 'gro'}
         }
     },
     {

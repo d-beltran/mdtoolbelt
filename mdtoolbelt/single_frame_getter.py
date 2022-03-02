@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Set, Optional
 
 from .formats import get_format, get_format_set_suitable_function
 from .gmx_spells import gmx_get_first_frame
@@ -8,13 +8,17 @@ from .gmx_spells import gmx_get_first_frame
 # Get the first frame from a trajectory
 # Return the single frame filename
 first_frame_getter_functions = [ gmx_get_first_frame ]
-def get_first_frame ( input_trajectory_filename : str, accepted_output_formats : Optional[List[str]] = None ) -> str:
+def get_first_frame ( input_trajectory_filename : str, accepted_output_formats : Optional[Set[str]] = None ) -> str:
     # Get the input trajecotry format
     input_format = get_format(input_trajectory_filename)
     format_set = {
-        'input_structure_filename': None,
-        'input_trajectory_filename': [input_format],
-        'output_frame_filename': accepted_output_formats
+        'inputs': {
+            'input_structure_filename': None,
+            'input_trajectory_filename': { input_format }
+        },
+        'outputs': {
+            'output_frame_filename': accepted_output_formats
+        }
     }
     # Get a suitable function to obtain the unique frame
     suitables = get_format_set_suitable_function(
