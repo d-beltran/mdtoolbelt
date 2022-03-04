@@ -50,6 +50,9 @@ def get_trajectory_subset (
     if not end:
         end = start + 1
 
+    if end < start:
+        raise SystemExit('End frame must be posterior to start frame')
+
     # Load the trajectory frame by frame and get only the desired frames
     trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
     # Get the first chunk
