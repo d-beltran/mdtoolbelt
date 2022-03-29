@@ -4,6 +4,11 @@ import mdtraj as mdt
 
 from .formats import get_format
 
+mdtraj_supported_structure_formats = {
+    'pdb', 'pdb.gz' 'h5', 'lh5', 'prmtop', 'parm7', 'prm7', 'psf', 'mol2', 'hoomdxml', 'gro', 'arc', 'hdf5', 'gsd'
+}
+mdtraj_supported_trajectory_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos'}
+
 # Multiple files may be selected with bash syntax (e.g. *.dcd)
 # Tested supported input formats are .dcd
 # Tested supported output formats are .xtc
@@ -29,10 +34,10 @@ def convert_traj (input_trajectory_filename : str, output_trajectory_filename : 
 convert_traj.format_sets = [
     {
         'inputs': {
-            'input_trajectory_filename': {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos'}
+            'input_trajectory_filename': mdtraj_supported_trajectory_formats
         },
         'outputs': {
-            'output_trajectory_filename': {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos'}
+            'output_trajectory_filename': mdtraj_supported_trajectory_formats
         }
     },
 ]
@@ -54,7 +59,12 @@ def get_trajectory_subset (
         raise SystemExit('End frame must be posterior to start frame')
 
     # Load the trajectory frame by frame and get only the desired frames
-    trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
+    if input_structure_filename:
+        print('IM IN -> ' + input_structure_filename)
+        trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
+    else:
+        print('IM OUT :(')
+        trajectory = mdt.iterload(input_trajectory_filename, chunk=1)
     # Get the first chunk
     reduced_trajectory = None
     for i, chunk in enumerate(trajectory):
@@ -74,22 +84,51 @@ def get_trajectory_subset (
 get_trajectory_subset.format_sets = [
     {
         'inputs': {
-            'input_structure_filename': {'pdb', 'h5'},
-            'input_trajectory_filename': {'dcd', 'xtc', 'trr', 'nc', 'binpos'}
+            'input_structure_filename': mdtraj_supported_structure_formats,
+            'input_trajectory_filename': mdtraj_supported_trajectory_formats
         },
         'outputs': {
-            'output_trajectory_filename': {'dcd', 'xtc', 'trr', 'nc', 'binpos'}
+            'output_trajectory_filename': mdtraj_supported_trajectory_formats
         }
     },
     {
         'inputs': {
             'input_structure_filename': None,
-            'input_trajectory_filename': {'pdb', 'h5'}
+            'input_trajectory_filename': mdtraj_supported_structure_formats
         },
         'outputs': {
-            'output_trajectory_filename': {'pdb', 'h5'}
+            'output_trajectory_filename': mdtraj_supported_structure_formats
         }
     }
+]
+
+# Get specific frames from a trajectory
+def get_first_frame (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    output_frame_filename : str,
+):
+    get_trajectory_subset(input_structure_filename, input_trajectory_filename, output_frame_filename, 0)
+# Set function supported formats
+get_first_frame.format_sets = [
+    {
+        'inputs': {
+            'input_structure_filename': None,
+            'input_trajectory_filename': mdtraj_supported_trajectory_formats
+        },
+        'outputs': {
+            'output_frame_filename': mdtraj_supported_trajectory_formats
+        }
+    },
+    {
+        'inputs': {
+            'input_structure_filename': mdtraj_supported_structure_formats,
+            'input_trajectory_filename': mdtraj_supported_trajectory_formats
+        },
+        'outputs': {
+            'output_frame_filename': { *mdtraj_supported_structure_formats, *mdtraj_supported_trajectory_formats }
+        }
+    },
 ]
 
 # Split a trajectory which is actually a merge of independent trajectories back to the original pieces

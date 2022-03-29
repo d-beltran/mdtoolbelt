@@ -4,7 +4,7 @@ from subprocess import run, PIPE, Popen
 from .formats import get_format
 
 # Get the first frame from a trajectory
-def gmx_get_first_frame (input_structure_filename : str, input_trajectory_filename : str, output_frame_filename : str):
+def get_first_frame (input_structure_filename : str, input_trajectory_filename : str, output_frame_filename : str):
     # Run Gromacs
     if input_structure_filename:
         p = Popen([
@@ -42,7 +42,7 @@ def gmx_get_first_frame (input_structure_filename : str, input_trajectory_filena
         raise SystemExit('Something went wrong with Gromacs')
 
 # Set function supported formats
-gmx_get_first_frame.format_sets = [
+get_first_frame.format_sets = [
     {
         'inputs': {
             'input_structure_filename': {'tpr', 'pdb', 'gro'},
@@ -83,22 +83,7 @@ gmx_get_first_frame.format_sets = [
 
 # Get the structure of a tpr file using the first frame getter function
 def get_tpr_structure (input_structure_filename : str, input_trajectory_filename : str, output_structure_filename : str):
-    gmx_get_first_frame(input_structure_filename, input_trajectory_filename, output_structure_filename)
-get_tpr_structure.format_sets = [
-    {
-        'inputs': {
-            'input_structure_filename': {'tpr', 'pdb', 'gro'},
-            'input_trajectory_filename': {'xtc', 'trr'}
-        },
-        'outputs': {
-            'output_structure_filename': {'pdb', 'gro'}
-        }
-    }
-]
-
-# Get the structure of a tpr file using the first frame getter function
-def get_tpr_structure (input_structure_filename : str, input_trajectory_filename : str, output_structure_filename : str):
-    gmx_get_first_frame(input_structure_filename, input_trajectory_filename, output_structure_filename)
+    get_first_frame(input_structure_filename, input_trajectory_filename, output_structure_filename)
 get_tpr_structure.format_sets = [
     {
         'inputs': {

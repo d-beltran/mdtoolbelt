@@ -2,6 +2,8 @@ from typing import Optional, List, Tuple, Callable
 
 # Get a filename format
 def get_format (filename : str) -> str:
+    if not filename:
+        return None
     return filename.split('.')[-1]
 
 # Find a function which is suitable for any of the available request "format sets"**

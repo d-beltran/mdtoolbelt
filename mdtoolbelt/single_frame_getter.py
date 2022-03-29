@@ -1,20 +1,27 @@
 from typing import List, Set, Optional
 
 from .formats import get_format, get_format_set_suitable_function
-from .gmx_spells import gmx_get_first_frame
+from .gmx_spells import get_first_frame as gmx_get_first_frame
+from .mdt_spells import get_first_frame as mdt_get_first_frame
 
 # Set the functions to performe first frame gettering
 
 # Get the first frame from a trajectory
 # Return the single frame filename
-first_frame_getter_functions = [ gmx_get_first_frame ]
-def get_first_frame ( input_trajectory_filename : str, accepted_output_formats : Optional[Set[str]] = None ) -> str:
-    # Get the input trajecotry format
-    input_format = get_format(input_trajectory_filename)
+# WARNING: The structure filename may be None
+first_frame_getter_functions = [ gmx_get_first_frame, mdt_get_first_frame ]
+def get_first_frame (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    accepted_output_formats : Optional[Set[str]] = None
+) -> str:
+    # Get the input formats
+    input_structure_format = get_format(input_structure_filename)
+    input_trajectory_format = get_format(input_trajectory_filename)
     format_set = {
         'inputs': {
-            'input_structure_filename': None,
-            'input_trajectory_filename': { input_format }
+            'input_structure_filename': None if input_structure_format == None else { input_structure_format },
+            'input_trajectory_filename': { input_trajectory_format }
         },
         'outputs': {
             'output_frame_filename': accepted_output_formats
@@ -29,8 +36,8 @@ def get_first_frame ( input_trajectory_filename : str, accepted_output_formats :
         raise SystemExit('There is no first frame getter function which supports the requested formats')
     suitable_function, formats = suitables
     # The output format will be the first common format between the available formats and the function formats
-    output_format = formats['outputs']['output_frame_filename'][0]
+    output_format = list(formats['outputs']['output_frame_filename'])[0]
     # Set the output filename
     output_single_frame_filename = '.single_frame.' + output_format
-    suitable_function(input_trajectory_filename, output_single_frame_filename)
+    suitable_function(input_structure_filename, input_trajectory_filename, output_single_frame_filename)
     return output_single_frame_filename
