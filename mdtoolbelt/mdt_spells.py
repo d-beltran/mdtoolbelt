@@ -7,11 +7,10 @@ from .formats import get_format
 mdtraj_supported_structure_formats = {
     'pdb', 'pdb.gz' 'h5', 'lh5', 'prmtop', 'parm7', 'prm7', 'psf', 'mol2', 'hoomdxml', 'gro', 'arc', 'hdf5', 'gsd'
 }
-mdtraj_supported_trajectory_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos'}
+mdtraj_supported_trajectory_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos', 'mdcrd'}
 
-# Multiple files may be selected with bash syntax (e.g. *.dcd)
-# Tested supported input formats are .dcd
-# Tested supported output formats are .xtc
+# Use mdtraj 'mdconvert' command-line script (there is no python version for this tool apparently)
+# Multiple files may be selected with bash syntax
 def merge_and_convert_traj (
     input_filenames : list,
     output_filename : str
@@ -28,16 +27,49 @@ def merge_and_convert_traj (
     if not os.path.exists(output_filename):
         print(logs)
         raise SystemExit('Something went wrong with MDTraj')
+        
+# NEVER FORGET: mdconvert does not handle mdcrd format
+mdconvert_supported_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos'}
 
+# Convert trajectories using 'mdconvert'
 def convert_traj (input_trajectory_filename : str, output_trajectory_filename : str):
     merge_and_convert_traj([input_trajectory_filename], output_trajectory_filename)
 convert_traj.format_sets = [
     {
         'inputs': {
+            'input_trajectory_filename': mdconvert_supported_formats
+        },
+        'outputs': {
+            # NEVER FORGET: mdconvert does not handle mdcrd format
+            'output_trajectory_filename': mdconvert_supported_formats
+        }
+    },
+]
+
+# Convert trajectories to mdcrd, which is not supported by the mdconvert command
+# WARNING: Note that this process is not memory efficient so beware the size of the trajectory to be converted
+def convert_traj_crd (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    output_trajectory_filename : str,
+):
+    # Load the trajectory frame by frame
+    if input_structure_filename:
+        trajectory = mdt.load(input_trajectory_filename, top=input_structure_filename)
+    else:
+        trajectory = mdt.load(input_trajectory_filename)
+    # Write the trajectory
+    trajectory.save_mdcrd(output_trajectory_filename)
+    
+convert_traj_crd.format_sets = [
+    {
+        'inputs': {
+            'input_structure_filename': mdtraj_supported_structure_formats,
             'input_trajectory_filename': mdtraj_supported_trajectory_formats
         },
         'outputs': {
-            'output_trajectory_filename': mdtraj_supported_trajectory_formats
+            # NEVER FORGET: mdconvert does not handle mdcrd format
+            'output_trajectory_filename': { 'mdcrd' }
         }
     },
 ]
@@ -60,10 +92,8 @@ def get_trajectory_subset (
 
     # Load the trajectory frame by frame and get only the desired frames
     if input_structure_filename:
-        print('IM IN -> ' + input_structure_filename)
         trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
     else:
-        print('IM OUT :(')
         trajectory = mdt.iterload(input_trajectory_filename, chunk=1)
     # Get the first chunk
     reduced_trajectory = None

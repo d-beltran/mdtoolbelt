@@ -6,7 +6,7 @@ from inspect import getfullargspec
 from .formats import get_format, get_format_set_suitable_function
 from .vmd_spells import vmd_to_pdb
 from .gmx_spells import get_tpr_structure, gmx_convert_trajectory
-from .mdt_spells import convert_traj
+from .mdt_spells import convert_traj, convert_traj_crd
 
 # Set functions to performe structure conversions
 # These functions must have 'input_structure_filename' and 'output_structure_filename' keywords
@@ -17,7 +17,7 @@ structure_converting_functions = [ get_tpr_structure, vmd_to_pdb ]
 # Set functions to performe trajectory conversions
 # These functions must have 'input_trajectory_filename' and 'output_trajectory_filename' keywords
 # These functions must have the 'format_sets' property
-trajectory_converting_functions = [ convert_traj, gmx_convert_trajectory ]
+trajectory_converting_functions = [ convert_traj, convert_traj_crd, gmx_convert_trajectory ]
 
 # Handle conversions of different structure and trajectory formats
 # Inputs are the original strucutre and/or trajectory files and the list of possible output filenames
@@ -105,6 +105,7 @@ def convert (
         # Choose the right conversion function according to input and output formats
         request_format_set = {
             'inputs': {
+                'input_structure_filename': { input_structure_format },
                 'input_trajectory_filename': { input_trajectory_format }
             },
             'outputs': {
@@ -120,8 +121,26 @@ def convert (
             raise SystemExit('Conversion from ' + input_trajectory_format +
                 ' to ' + output_trajectory_format + ' is not supported')
         converting_function, formats = suitable
-        converting_function(
-            input_trajectory_filename=input_trajectory_filename,
-            output_trajectory_filename=output_trajectory_filename
-        )
+        # Get the input structure expected format
+        expected_input_structure_formats = formats['inputs'].get('input_structure_filename', False)
+        # If the function expects any fromat then pass the structure
+        if expected_input_structure_formats:
+            converting_function(
+                input_structure_filename=input_structure_filename,
+                input_trajectory_filename=input_trajectory_filename,
+                output_trajectory_filename=output_trajectory_filename
+            )
+        # If the function expects None then pass None
+        elif expected_input_structure_formats == None:
+            converting_function(
+                input_structure_filename=None,
+                input_trajectory_filename=input_trajectory_filename,
+                output_trajectory_filename=output_trajectory_filename
+            )
+        # If the function has not the input structure argument then do not pass it
+        else:
+            converting_function(
+                input_trajectory_filename=input_trajectory_filename,
+                output_trajectory_filename=output_trajectory_filename
+            )
     convert_trajectory()
