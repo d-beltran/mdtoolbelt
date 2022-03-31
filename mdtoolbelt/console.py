@@ -17,8 +17,8 @@ convert_parser.add_argument(
     "-os", "--output_structure",
     help="Path to output structure file")
 convert_parser.add_argument(
-    "-it", "--input_trajectory",
-    help="Path to input trajectory file")
+    "-it", "--input_trajectories", nargs='*',
+    help="Path to input trajectory file(s)")
 convert_parser.add_argument(
     "-ot", "--output_trajectory",
     help="Path to output trajectory file")
@@ -87,14 +87,14 @@ def call():
     # In case the convert tool was called
     if tool == 'convert':
         # If no input arguments are passed print help
-        if args.input_structure == None and args.input_trajectory == None:
+        if args.input_structure == None and args.input_trajectories == None:
             convert_parser.print_help()
             return
         # Run the convert command
         convert(
             input_structure_filename=args.input_structure,
             output_structure_filename=args.output_structure,
-            input_trajectory_filename=args.input_trajectory,
+            input_trajectory_filenames=args.input_trajectories,
             output_trajectory_filename=args.output_trajectory,
         )
 
@@ -127,3 +127,4 @@ def call():
 
     # Tool will always match one of the previous defined options
     # Otherwise argparse returns error itself
+    print('Done :)')

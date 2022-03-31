@@ -1,5 +1,8 @@
 import os
+from shutil import copyfile
 from subprocess import run, PIPE, Popen
+
+from typing import List
 
 from .formats import get_format
 
@@ -96,27 +99,56 @@ get_tpr_structure.format_sets = [
     }
 ]
 
-# Get a gromacs supported trajectory in a different format
-def gmx_convert_trajectory (input_trajectory_filename : str, output_trajectory_filename : str):
-    logs = run([
-        "gmx",
-        "trjconv",
-        "-f",
-        input_trajectory_filename,
-        "-o",
-        output_trajectory_filename,
-        "-dump",
-        "0",
-        "-quiet"
-    ], stderr=PIPE).stderr.decode()
-    # If output has not been generated then warn the user
-    if not os.path.exists(output_trajectory_filename):
-        print(logs)
-        raise SystemExit('Something went wrong with Gromacs')
-gmx_convert_trajectory.format_sets = [
+# Get gromacs supported trajectories merged and converted to a different format
+def merge_and_convert_trajectories (input_trajectory_filenames : List[str], output_trajectory_filename : str):
+    # Get trajectory formats
+    sample_trajectory = input_trajectory_filenames[0]
+    input_trajectories_format = get_format(sample_trajectory)
+    output_trajectory_format = get_format(output_trajectory_filename)
+    auxiliar_single_trajectory_filename = '.single_trajectory.' + input_trajectories_format
+    # If we have multiple trajectories then join them
+    if len(input_trajectory_filenames) > 1:
+        single_trajectory_filename = auxiliar_single_trajectory_filename
+        logs = run([
+            "gmx",
+            "trjcat",
+            "-f",
+            *input_trajectory_filenames,
+            "-o",
+            single_trajectory_filename,
+            "-quiet"
+        ], stderr=PIPE).stderr.decode()
+        # If output has not been generated then warn the user
+        if not os.path.exists(single_trajectory_filename):
+            print(logs)
+            raise SystemExit('Something went wrong with Gromacs')
+    else:
+        single_trajectory_filename = sample_trajectory
+    # In case input and output formats are different we must convert the trajectory
+    if input_trajectories_format != output_trajectory_format:
+        logs = run([
+            "gmx",
+            "trjconv",
+            "-f",
+            single_trajectory_filename,
+            "-o",
+            output_trajectory_filename,
+            "-quiet"
+        ], stderr=PIPE).stderr.decode()
+        # If output has not been generated then warn the user
+        if not os.path.exists(output_trajectory_filename):
+            print(logs)
+            raise SystemExit('Something went wrong with Gromacs')
+    else:
+        copyfile(single_trajectory_filename, output_trajectory_filename)
+    # Remove residual files
+    if os.path.exists(auxiliar_single_trajectory_filename):
+        os.remove(auxiliar_single_trajectory_filename)
+
+merge_and_convert_trajectories.format_sets = [
     {
         'inputs': {
-            'input_trajectory_filename': {'xtc', 'trr'}
+            'input_trajectory_filenames': {'xtc', 'trr'}
         },
         'outputs': {
             'output_trajectory_filename': {'xtc', 'trr'}
@@ -124,7 +156,7 @@ gmx_convert_trajectory.format_sets = [
     },
     {
         'inputs': {
-            'input_trajectory_filename': {'pdb'}
+            'input_trajectory_filenames': {'pdb'}
         },
         'outputs': {
             'output_trajectory_filename': {'pdb', 'xtc', 'trr'}
@@ -132,7 +164,7 @@ gmx_convert_trajectory.format_sets = [
     },
     {
         'inputs': {
-            'input_trajectory_filename': {'gro'}
+            'input_trajectory_filenames': {'gro'}
         },
         'outputs': {
             'output_trajectory_filename': {'gro', 'xtc', 'trr'}

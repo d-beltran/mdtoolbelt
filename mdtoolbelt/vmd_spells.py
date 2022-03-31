@@ -5,9 +5,10 @@
 import os
 
 from subprocess import run, PIPE, Popen
-from typing import Optional
+from typing import Optional, List
 
 from .single_frame_getter import get_first_frame
+from .formats import get_format
 
 # Set the script filename with all commands to be passed to vmd
 commands_filename = '.commands.vmd'
@@ -86,10 +87,6 @@ def chainer (
     # Check the file exists
     if not os.path.exists(input_pdb_filename):
         raise SystemExit('ERROR: The file does not exist')
-
-    # Set he path to a script with all commands needed for VMD to parse the topology file
-    # The scripts is in Tcl lenguage
-    commands_filename = '.commands.vmd'
        
     with open(commands_filename, "w") as file:
         # Select the specified atoms and set the specified chain
@@ -130,3 +127,56 @@ def chainer (
 
     # Remove the vmd commands file
     os.remove(commands_filename)
+
+# Get vmd supported trajectories merged and converted to a different format
+# WARNING: Note that this process is not memory efficient so beware the size of trajectories to be converted
+def merge_and_convert_trajectories (
+    input_trajectory_filenames : List[str],
+    output_trajectory_filename : str
+    ):
+
+    # Get the format to export coordinates
+    output_trajectory_format = get_format(output_trajectory_filename)
+
+    # Although 'crd' and 'mdcrd' may be the same, VMD only recognizes 'crd' as exporting coordinates file type
+    if output_trajectory_format == 'mdcrd':
+        output_trajectory_format = 'crd'
+
+    # Prepare a script for the VMD to automate the data parsing. This is Tcl lenguage
+    # In addition, if chains are missing, this script asigns chains by fragment
+    # Fragments are atom groups which are not connected by any bond
+    with open(commands_filename, "w") as file:
+        # Select all atoms
+        file.write('set all [atomselect top "all"]\n')
+        # Write the current trajectory in the specified format format
+        file.write('animate write ' + output_trajectory_format + ' ' + output_trajectory_filename + ' waitfor all sel $all\n')
+        file.write('exit\n')
+
+    # Run VMD
+    logs = run([
+        "vmd",
+        *input_trajectory_filenames,
+        "-e",
+        commands_filename,
+        "-dispdev",
+        "none"
+    ], stdout=PIPE).stdout.decode()
+
+    if not os.path.exists(output_trajectory_filename):
+        print(logs)
+        raise SystemExit('Something went wrong with VMD')
+
+    # Remove the vmd commands file
+    os.remove(commands_filename)
+
+# Set function supported formats
+merge_and_convert_trajectories.format_sets = [
+    {
+        'inputs': {
+            'input_trajectory_filenames': vmd_supported_trajectory_formats
+        },
+        'outputs': {
+            'output_trajectory_filename': vmd_supported_trajectory_formats
+        }
+    }
+]

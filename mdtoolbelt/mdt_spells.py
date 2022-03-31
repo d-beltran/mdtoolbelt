@@ -1,5 +1,7 @@
 import os
 from subprocess import run, PIPE
+from typing import List
+
 import mdtraj as mdt
 
 from .formats import get_format
@@ -11,65 +13,70 @@ mdtraj_supported_trajectory_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos'
 
 # Use mdtraj 'mdconvert' command-line script (there is no python version for this tool apparently)
 # Multiple files may be selected with bash syntax
-def merge_and_convert_traj (
-    input_filenames : list,
-    output_filename : str
+def merge_and_convert_trajectories (
+    input_trajectory_filenames : List[str],
+    output_trajectory_filename : str
     ):
 
     # Run MDtraj
     logs = run([
         "mdconvert",
         "-o",
-        output_filename,
-        *input_filenames,
+        output_trajectory_filename,
+        *input_trajectory_filenames,
     ], stderr=PIPE).stderr.decode()
     # If output has not been generated then warn the user
-    if not os.path.exists(output_filename):
+    if not os.path.exists(output_trajectory_filename):
         print(logs)
         raise SystemExit('Something went wrong with MDTraj')
         
 # NEVER FORGET: mdconvert does not handle mdcrd format
 mdconvert_supported_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos'}
-
-# Convert trajectories using 'mdconvert'
-def convert_traj (input_trajectory_filename : str, output_trajectory_filename : str):
-    merge_and_convert_traj([input_trajectory_filename], output_trajectory_filename)
-convert_traj.format_sets = [
+merge_and_convert_trajectories.format_sets = [
     {
         'inputs': {
-            'input_trajectory_filename': mdconvert_supported_formats
+            'input_trajectory_filenames': mdconvert_supported_formats
         },
         'outputs': {
-            # NEVER FORGET: mdconvert does not handle mdcrd format
             'output_trajectory_filename': mdconvert_supported_formats
         }
     },
 ]
 
-# Convert trajectories to mdcrd, which is not supported by the mdconvert command
-# WARNING: Note that this process is not memory efficient so beware the size of the trajectory to be converted
-def convert_traj_crd (
+# Merge and convert trajectories without the mdconvert command
+# WARNING: Note that this process is not memory efficient so beware the size of trajectories to be converted
+# DEPRECATED: This function was meant to convert trajectories to mdcrd, which is not supported by mdconvert
+# DEPRECATED: However the export to mdcrd in mdtraj does not allow to remove the periodic box, which may be a problem
+# DEPRECTAED: Use VMD instead
+def merge_and_convert_trajectories_unefficient (
     input_structure_filename : str,
-    input_trajectory_filename : str,
+    input_trajectory_filenames : List[str],
     output_trajectory_filename : str,
 ):
-    # Load the trajectory frame by frame
+    # Load all trajectories together
+    sample_trajectory = input_trajectory_filenames[0]
     if input_structure_filename:
-        trajectory = mdt.load(input_trajectory_filename, top=input_structure_filename)
+        trajectory = mdt.load(sample_trajectory, top=input_structure_filename)
     else:
-        trajectory = mdt.load(input_trajectory_filename)
-    # Write the trajectory
-    trajectory.save_mdcrd(output_trajectory_filename)
+        trajectory = mdt.load(sample_trajectory)
+    for extra_trajectory in input_trajectory_filenames[1:]:
+        if input_structure_filename:
+            extra = mdt.load(sample_trajectory, top=input_structure_filename)
+        else:
+            extra = mdt.load(sample_trajectory)
+        trajectory = mdt.join([trajectory, extra], check_topology=False)
+        
+    # Write the whole trajectory
+    trajectory.save(output_trajectory_filename)
     
-convert_traj_crd.format_sets = [
+merge_and_convert_trajectories_unefficient.format_sets = [
     {
         'inputs': {
             'input_structure_filename': mdtraj_supported_structure_formats,
-            'input_trajectory_filename': mdtraj_supported_trajectory_formats
+            'input_trajectory_filenames': mdtraj_supported_trajectory_formats
         },
         'outputs': {
-            # NEVER FORGET: mdconvert does not handle mdcrd format
-            'output_trajectory_filename': { 'mdcrd' }
+            'output_trajectory_filename': mdtraj_supported_trajectory_formats
         }
     },
 ]
@@ -108,6 +115,10 @@ def get_trajectory_subset (
             break
         if i % step == 0:
             reduced_trajectory = mdt.join([reduced_trajectory, chunk], check_topology=False)
+
+    # WARNING: This print here is not just a log. DO NOT REMOVE IT
+    # WARNING: It fixes an error (ValueError: unitcell angle < 0) which happens sometimes
+    print(reduced_trajectory)
 
     # Write reduced trajectory to output file
     reduced_trajectory.save(output_trajectory_filename)
