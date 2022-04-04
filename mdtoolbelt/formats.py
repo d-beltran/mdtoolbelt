@@ -44,46 +44,60 @@ def get_format_set_suitable_function (
                 if not check_format_sets_compability(request_format_set, function_format_set):
                     raise ValueError('Format keys are not compatible with function ' + str(function.__name__))
                 # Check the function inputs to be fulfilled by the request inputs
-                required_input_keywords = function_format_set['inputs'].keys()
-                for keyword in required_input_keywords:
-                    required_formats = function_format_set['inputs'][keyword]
-                    # If this format set does not need an input we set None for this keyword
-                    if required_formats == None:
-                        common_format_set[keyword] = None
-                        continue
-                    available_formats = request_format_set['inputs'][keyword]
-                    # If this format set is missing an input we are done
-                    if available_formats == None:
-                        missing_common_format = True
-                        break
-                    common_formats = available_formats.intersection(required_formats)
-                    # If the common formats set is empty we are done
-                    if not common_formats:
-                        missing_common_format = True
-                        break
-                    common_format_set['inputs'][keyword] = common_formats
+                required_input = function_format_set.get('inputs', None)
+                if required_input:
+                    required_input_keywords = required_input.keys()
+                    for keyword in required_input_keywords:
+                        required_formats = required_input[keyword]
+                        # If this format set does not need an input we set None for this keyword
+                        if required_formats == None:
+                            common_format_set[keyword] = None
+                            continue
+                        available_inputs = request_format_set.get('inputs', None)
+                        # If this format set has not inputs at all we are done
+                        if not available_inputs:
+                            missing_common_format = True
+                            break
+                        available_formats = available_inputs[keyword]
+                        # If this format set is missing an input we are done
+                        if available_formats == None:
+                            missing_common_format = True
+                            break
+                        common_formats = available_formats.intersection(required_formats)
+                        # If the common formats set is empty we are done
+                        if not common_formats:
+                            missing_common_format = True
+                            break
+                        common_format_set['inputs'][keyword] = common_formats
                 # If any of the common format sets was empty it means formats do not match
                 if missing_common_format:
                     continue
                 # Check the request outputs to be fulfilled by the function outputs
-                required_outpt_keywords = request_format_set['outputs'].keys()
-                for keyword in required_outpt_keywords:
-                    required_formats = request_format_set['outputs'][keyword]
-                    # If this format set does not need an input we set None for this keyword
-                    if required_formats == None:
-                        common_format_set[keyword] = None
-                        continue
-                    available_formats = function_format_set['outputs'][keyword]
-                    # If this format set is missing an input we are done
-                    if available_formats == None:
-                        missing_common_format = True
-                        break
-                    common_formats = available_formats.intersection(required_formats)
-                    # If the common formats set is empty we are done
-                    if not common_formats:
-                        missing_common_format = True
-                        break
-                    common_format_set['outputs'][keyword] = common_formats
+                required_output = request_format_set.get('outputs', None)
+                if required_output:
+                    required_output_keywords = required_output.keys()
+                    for keyword in required_output_keywords:
+                        required_formats = required_output[keyword]
+                        # If this format set does not provide an output we set None for this keyword
+                        if required_formats == None:
+                            common_format_set[keyword] = None
+                            continue
+                        available_outputs = function_format_set.get('outputs', None)
+                        # If this format set has not outputs at all we are done
+                        if not available_outputs:
+                            missing_common_format = True
+                            break
+                        available_formats = available_outputs[keyword]
+                        # If this format set is missing an input we are done
+                        if available_formats == None:
+                            missing_common_format = True
+                            break
+                        common_formats = available_formats.intersection(required_formats)
+                        # If the common formats set is empty we are done
+                        if not common_formats:
+                            missing_common_format = True
+                            break
+                        common_format_set['outputs'][keyword] = common_formats
                 # If any of the common format sets was empty it means formats do not match
                 if missing_common_format:
                     continue
@@ -97,19 +111,31 @@ def get_format_set_suitable_function (
 # i.e. all request format set output keywords must be included in function format set output keywords
 def check_format_sets_compability (request_format_set : dict, function_format_set : dict) -> bool:
     # Check the function inputs keyowrds to exist in the request input keywords
-    required_input_keywords = function_format_set['inputs'].keys()
-    available_input_keywords = request_format_set['inputs'].keys()
-    for keyword in required_input_keywords:
-        if keyword not in available_input_keywords:
-            print('ERROR: Missing ' + keyword + ' keyword')
+    required_inputs = function_format_set.get('inputs', None)
+    if required_inputs:
+        required_input_keywords = required_inputs.keys()
+        available_inputs = request_format_set.get('inputs', None)
+        if not available_inputs:
+            print('ERROR: Missing inputs')
             return False
+        available_input_keywords = available_inputs.keys()
+        for keyword in required_input_keywords:
+            if keyword not in available_input_keywords:
+                print('ERROR: Missing ' + keyword + ' keyword')
+                return False
     # Check the request output keyowrds to exist in the function output keywords
-    required_outpt_keywords = request_format_set['outputs'].keys()
-    available_outpt_keywords = function_format_set['outputs'].keys()
-    for keyword in required_outpt_keywords:
-        if keyword not in available_outpt_keywords:
-            print('ERROR: Missing ' + keyword + ' keyword')
+    required_outputs = request_format_set.get('outputs', None)
+    if required_outputs:
+        required_output_keywords = required_outputs.keys()
+        available_outputs = function_format_set.get('outputs', None)
+        if not available_outputs:
+            print('ERROR: Missing outputs')
             return False
+        available_output_keywords = function_format_set['outputs'].keys()
+        for keyword in required_output_keywords:
+            if keyword not in available_output_keywords:
+                print('ERROR: Missing ' + keyword + ' keyword')
+                return False
     return True
 
 
