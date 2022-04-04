@@ -5,7 +5,9 @@ from typing import List
 import mdtraj as mdt
 
 from .formats import get_format
+from .frame_counts import get_frames_count
 
+# Set mdtraj supported formats
 mdtraj_supported_structure_formats = {
     'pdb', 'pdb.gz' 'h5', 'lh5', 'prmtop', 'parm7', 'prm7', 'psf', 'mol2', 'hoomdxml', 'gro', 'arc', 'hdf5', 'gsd'
 }
@@ -143,15 +145,23 @@ get_trajectory_subset.format_sets = [
     }
 ]
 
-# Get specific frames from a trajectory
+# Get first frame from a trajectory
 def get_first_frame (
     input_structure_filename : str,
     input_trajectory_filename : str,
     output_frame_filename : str,
 ):
     get_trajectory_subset(input_structure_filename, input_trajectory_filename, output_frame_filename, 0)
+# Get last last from a trajectory
+def get_last_frame (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    output_frame_filename : str,
+):
+    frame_count = get_frames_count(input_structure_filename, input_trajectory_filename)
+    get_trajectory_subset(input_structure_filename, input_trajectory_filename, output_frame_filename, frame_count-1)
 # Set function supported formats
-get_first_frame.format_sets = [
+single_frame_getter_format_sets = [
     {
         'inputs': {
             'input_structure_filename': None,
@@ -171,6 +181,8 @@ get_first_frame.format_sets = [
         }
     },
 ]
+get_first_frame.format_sets = single_frame_getter_format_sets
+get_last_frame.format_sets = single_frame_getter_format_sets
 
 # Split a trajectory which is actually a merge of independent trajectories back to the original pieces
 # Run an RMSD analysis to guess where the pieces are

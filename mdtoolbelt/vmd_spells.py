@@ -7,7 +7,7 @@ import os
 from subprocess import run, PIPE, Popen
 from typing import Optional, List
 
-from .single_frame_getter import get_first_frame
+from .single_frame_getter import get_last_frame
 from .formats import get_format
 
 # Set the script filename with all commands to be passed to vmd
@@ -22,7 +22,7 @@ def vmd_to_pdb (
     input_trajectory_filename : str,
     output_structure_filename : str):
 
-    single_frame_filename = get_first_frame(input_structure_filename, input_trajectory_filename, vmd_supported_trajectory_formats)
+    single_frame_filename = get_last_frame(input_structure_filename, input_trajectory_filename, vmd_supported_trajectory_formats)
 
     # Prepare a script for VMD to run. This is Tcl language
     with open(commands_filename, "w") as file:
