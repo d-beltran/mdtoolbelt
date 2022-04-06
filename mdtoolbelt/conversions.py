@@ -3,7 +3,7 @@ from shutil import copyfile
 from typing import List, Optional
 from inspect import getfullargspec
 
-from .formats import get_format, get_format_set_suitable_function
+from .formats import get_format, get_format_set_suitable_function, get_format_set_suitable_combination
 from .vmd_spells import vmd_to_pdb
 from .gmx_spells import get_tpr_structure
 from .gmx_spells import merge_and_convert_trajectories as gmx_merge_and_convert_trajectories
@@ -80,10 +80,10 @@ def convert (
                 'output_structure_filename': { output_structure_format }
             }
         }
-        suitable = get_format_set_suitable_function(
+        suitable = next(get_format_set_suitable_function(
             available_functions=structure_converting_functions,
             available_request_format_sets=[request_format_set],
-        )
+        ), None)
         # If there is no function to handle this specific conversion we stop here
         if not suitable:
             raise SystemExit('Conversion from ' + input_structure_format +
@@ -129,10 +129,17 @@ def convert (
                 'output_trajectory_filename': { output_trajectory_format }
             }
         }
-        suitable = get_format_set_suitable_function(
+        suitable = next(get_format_set_suitable_function(
             available_functions=trajectory_converting_functions,
             available_request_format_sets=[request_format_set],
-        )
+        ), None)
+        # If there is no function to handle this specific conversion we try to combine several functions in order to do it
+        if not suitable:
+            print('WARNING: There is no function to do the conversion directly. Trying to combine multiple functions...')
+            suitable = next(get_format_set_suitable_combination(
+                available_functions=trajectory_converting_functions,
+                available_request_format_sets=[request_format_set],
+            ), None)
         # If there is no function to handle this specific conversion we stop here
         if not suitable:
             raise SystemExit('Conversion from ' + input_trajectory_format +

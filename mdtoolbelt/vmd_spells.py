@@ -4,7 +4,7 @@
 
 import os
 
-from subprocess import run, PIPE, Popen
+from subprocess import run, PIPE, STDOUT, Popen
 from typing import Optional, List
 
 from .single_frame_getter import get_last_frame
@@ -14,6 +14,7 @@ from .formats import get_format
 commands_filename = '.commands.vmd'
 
 # List all the vmd supported trajectory formats
+vmd_supported_structure_formats = {'pdb', 'prmtop', 'psf', 'gro'} # DANI: Esto lo he hecho rápido, hay muchas más
 vmd_supported_trajectory_formats = {'mdcrd', 'crd', 'dcd', 'xtc', 'trr', 'nc'}
 
 # Given a vmd supported topology with no coordinates and a single frame file, generate a pdb file
@@ -22,6 +23,8 @@ def vmd_to_pdb (
     input_trajectory_filename : str,
     output_structure_filename : str):
 
+    # DANI: Esto alomejor se podria substituit por un 'animate read' en los commands
+    # https://www.ks.uiuc.edu/Research/vmd/current/ug/node121.html
     single_frame_filename = get_last_frame(input_structure_filename, input_trajectory_filename, vmd_supported_trajectory_formats)
 
     # Prepare a script for VMD to run. This is Tcl language
@@ -130,7 +133,9 @@ def chainer (
 
 # Get vmd supported trajectories merged and converted to a different format
 # WARNING: Note that this process is not memory efficient so beware the size of trajectories to be converted
+# WARNING: The input structure filename may be None
 def merge_and_convert_trajectories (
+    input_structure_filename : Optional[str],
     input_trajectory_filenames : List[str],
     output_trajectory_filename : str
     ):
@@ -152,15 +157,17 @@ def merge_and_convert_trajectories (
         file.write('animate write ' + output_trajectory_format + ' ' + output_trajectory_filename + ' waitfor all sel $all\n')
         file.write('exit\n')
 
+    inputs = [ input_structure_filename, *input_trajectory_filenames ] if input_structure_filename else input_trajectory_filenames
+
     # Run VMD
     logs = run([
         "vmd",
-        *input_trajectory_filenames,
+        *inputs,
         "-e",
         commands_filename,
         "-dispdev",
         "none"
-    ], stdout=PIPE).stdout.decode()
+    ], stdout=PIPE, stderr=STDOUT).stdout.decode() # Redirect errors to the output in order to dont show them in console
 
     if not os.path.exists(output_trajectory_filename):
         print(logs)
@@ -173,10 +180,22 @@ def merge_and_convert_trajectories (
 merge_and_convert_trajectories.format_sets = [
     {
         'inputs': {
-            'input_trajectory_filenames': vmd_supported_trajectory_formats
+            'input_structure_filename': None,
+            'input_trajectory_filenames': {'dcd', 'xtc', 'trr', 'nc'}
         },
         'outputs': {
-            'output_trajectory_filename': vmd_supported_trajectory_formats
+            # NEVER FORGET: VMD cannot write to all formats it supports to read
+            'output_trajectory_filename': {'mdcrd', 'crd', 'dcd', 'trr'}
+        }
+    },
+    {
+        'inputs': {
+            'input_structure_filename': vmd_supported_structure_formats,
+            'input_trajectory_filenames': {'mdcrd', 'crd'}
+        },
+        'outputs': {
+            # NEVER FORGET: VMD cannot write to all formats it supports to read
+            'output_trajectory_filename': {'mdcrd', 'crd', 'dcd', 'trr'}
         }
     }
 ]

@@ -30,10 +30,10 @@ def get_first_frame (
         }
     }
     # Get a suitable function to obtain the unique frame
-    suitables = get_format_set_suitable_function(
+    suitables = next(get_format_set_suitable_function(
         available_functions=first_frame_getter_functions,
         available_request_format_sets=[format_set],
-    )
+    ), None)
     if not suitables:
         raise SystemExit('There is no first frame getter function which supports the requested formats')
     suitable_function, formats = suitables
@@ -65,10 +65,10 @@ def get_last_frame (
         }
     }
     # Get a suitable function to obtain the unique frame
-    suitables = get_format_set_suitable_function(
+    suitables = next(get_format_set_suitable_function(
         available_functions=last_frame_getter_functions,
         available_request_format_sets=[format_set],
-    )
+    ), None)
     if not suitables:
         raise SystemExit('There is no last frame getter function which supports the requested formats')
     suitable_function, formats = suitables

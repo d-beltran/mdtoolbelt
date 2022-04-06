@@ -20,10 +20,10 @@ def get_frames_count (
         }
     }
     # Get a suitable function
-    suitables = get_format_set_suitable_function(
+    suitables = next(get_format_set_suitable_function(
         available_functions=frame_count_functions,
         available_request_format_sets=[format_set],
-    )
+    ), None)
     if not suitables:
         raise SystemExit('There is no frame count function which supports the requested formats')
     suitable_function, formats = suitables
