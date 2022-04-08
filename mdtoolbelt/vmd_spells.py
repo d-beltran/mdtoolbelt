@@ -68,6 +68,8 @@ vmd_to_pdb.format_sets = [
 # 2 - Atom selection (All atoms by defualt)
 # 3 - Chain letter (May be the flag 'fragment', which is the default indeed)
 # 4 - Output pdb filename (Input filename by default)
+# WARNING: When no selection is passed, if only a part of a "fragment" is missing the chain then the whole fragment will be affected
+# WARNING: VMD only handles fragments if there are less fragments than letters in the alphabet
 def chainer (
     input_pdb_filename : str,
     atom_selection : Optional[str] = None,

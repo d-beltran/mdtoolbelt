@@ -1,5 +1,6 @@
 # Main handler of the toolbelt
 import os
+from bisect import bisect
 from typing import Optional, Tuple, List
 Coords = Tuple[float, float, float]
 
@@ -7,25 +8,54 @@ import prody
 
 from .selections import Selection
 
+# ------------------------------------------------------------------------------------
+
+# Functions for type handling
+
+# Get the residue and the residue index out of both the residue or the residue index
+def parse_residue (input_residue : Optional['Residue', int]) -> Tuple['Residue', int]:
+    if type(input_residue) == int:
+        residue_index = input_residue
+        residue = residue.structure.residues[residue_index]
+    elif type(input_residue) == 'Residue':
+        residue = input_residue
+        residue_index = residue.index
+    else:
+        raise ValueError('Unknow type when expecting Residue or int')
+    return residue, residue_index
+
+# Get the chain and the chain index out of both the chain or the chain index
+def parse_chain (input_chain : Optional['Chain', int]) -> Tuple['Chain', int]:
+    if type(input_chain) == int:
+        chain_index = input_chain
+        chain = chain.structure.chains[chain_index]
+    elif type(input_chain) == 'Chain':
+        chain = input_chain
+        chain_index = chain.index
+    else:
+        raise ValueError('Unknow type when expecting Chain or int')
+    return chain, chain_index
+
+# ------------------------------------------------------------------------------------
+
 # An atom
 class Atom:
     def __init__ (self,
         name : Optional[str] = None,
         element : Optional[str] = None,
         coords : Optional[Coords] = None,
-        residue_index : Optional[int] = None,
-        chain_index : Optional[int] = None,
         ):
         self.name = name
         self.element = element
         self.coords = coords
-        self.residue_index = residue_index
-        self.chain_index = chain_index
         # Set variables to store references to other related instances
         # These variables will be set further by the structure
         self.structure = None
+        self.index = None
         self.residue = None
         self.chain = None
+        self.residue_index = None
+        self.chain_index = None
 
     def __repr__ (self):
         return '<Atom ' + self.name + '>'
@@ -38,42 +68,83 @@ class Residue:
         number : Optional[int] = None,
         icode : Optional[str] = None,
         atom_indices : List[int] = [],
-        chain_index : Optional[int] = None,
         ):
         self.name = name
         self.number = number
         self.icode = icode
         self.atom_indices = atom_indices
-        self.chain_index = chain_index
         # Set variables to store references to other related instaces
         # These variables will be set further by the structure
         self.structure = None
-        self.atoms = None
+        self.index = None
+        self.atoms = []
         self.chain = None
+        self.chain_index = None
 
     def __repr__ (self):
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
 
+    # Change the chain of the residue
+    def change_chain (self, new_chain : Optional['Chain', int]):
+        # Get the residue current chain and remove the current residue from it
+        current_chain = self.chain
+        current_chain.remove_residue(self)
+        # Get the new chain to be set
+        new_chain, new_chain_index = parse_chain(new_chain)
+        new_chain.add_residue(self)
 
 # A chain
 class Chain:
     def __init__ (self,
         name : Optional[str] = None,
-        atom_indices : List[int] = [],
         residue_indices : List[int] = [],
         ):
         self.name = name
-        self.atom_indices = atom_indices
         self.residue_indices = residue_indices
         # Set variables to store references to other related instaces
         # These variables will be set further by the structure
         self.structure = None
-        self.atoms = None
-        self.residues = None
+        self.index = None
+        self.residues = []
+        self.atoms = []
+        self.atom_indices = []
 
     def __repr__ (self):
         return '<Chain ' + self.name + '>'
 
+    # Add a residue to the chain
+    def add_residue (self, input_residue : Optional['Residue', int]):
+        residue, residue_index = parse_residue(input_residue)
+        sorted_residue_index = bisect(self.residue_indices, residue_index)
+        self.residue_indices.insert(sorted_residue_index, residue_index)
+        self.residues.insert(sorted_residue_index, residue)
+        for atom_index in residue.atom_indices:
+            sorted_atom_index = bisect(self.atom_indices, atom_index)
+            self.atom_indices.insert(sorted_atom_index, atom_index)
+            atom = self.structure.atoms[atom_index]
+            self.atoms.insert(sorted_atom_index, atom)
+            # Update atoms themselves
+            atom.chain = self
+            atom.chain_index = self.index
+        # Update the residue itself
+        residue.chain = self
+        residue.chain_index = self.index
+
+    # Remove a residue from the chain
+    def remove_residue (self, input_residue : Optional['Residue', int]):
+        residue, residue_index = parse_residue(input_residue)
+        self.residue_indices.remove(residue_index) # This index MUST be in the list
+        self.residues.pop(residue_index)
+        for atom_index in residue.atom_indices:
+            self.atom_indices.remove(atom_index) # This index MUST be in the list
+            self.atoms.pop(atom_index)
+            # Update atoms themselves
+            atom = self.structure.atoms[atom_index]
+            atom.chain = None
+            atom.chain_index = None
+        # Update the residue itself
+        residue.chain = None
+        residue.chain_index = None
 
 # A structure is a group of atoms organized in chains and residues
 class Structure:
@@ -82,27 +153,59 @@ class Structure:
         residues : List['Residue'] = [],
         chains : List['Chain'] = [],
         ):
-        self.atoms = atoms
-        self.residues = residues
-        self.chains = chains
-        # Set self as structure on each input atom, residue and chain
-        for instance in atoms + residues + chains:
-            instance.structure = self
+        self.atoms = []
+        self.residues = []
+        self.chains = []
         # Set references between instances
         for atom in atoms:
-            atom.residue = residues[atom.residue_index]
-            atom.chain = chains[atom.chain_index]
+            self.set_new_atom(atom)
         for residue in residues:
-            residue.atoms = [ atoms[index] for index in residue.atom_indices ]
-            residue.chain = chains[residue.chain_index]
+            self.set_new_residue(residue)
         for chain in chains:
-            chain.atoms = [ atoms[index] for index in chain.atom_indices ]
-            chain.residues = [ residues[index] for index in chain.residue_indices ]
-        # Set internal variables
-        self._prody_topology = None
+            self.set_new_chain(chain)
 
     def __repr__ (self):
         return '<Structure (' + str(len(self.atoms)) + ' atoms)>'
+
+    # Set a new atom in the structure
+    def set_new_atom (self, atom : 'Atom'):
+        atom.structure = self
+        new_atom_index = len(self.atoms)
+        self.atoms.append(atom)
+        atom.index = new_atom_index
+
+    # Set a new residue in the structure
+    # WARNING: Atoms must be set already before setting residues
+    def set_new_residue (self, residue : 'Residue'):
+        residue.structure = self
+        new_residue_index = len(self.residues)
+        self.residues.append(residue)
+        residue.index = new_residue_index
+        for atom_index in residue.atom_indices:
+            atom = self.atoms[atom_index]
+            residue.atoms.append(atom)
+            atom.residue_index = new_residue_index
+            atom.residue = residue
+
+    # Set a new chain in the structure
+    # WARNING: Residues and atoms must be set already before setting chains
+    def set_new_chain (self, chain : 'Chain'):
+        chain.structure = self
+        new_chain_index = len(self.chains)
+        self.chains.append(chain)
+        chain.index = new_chain_index
+        # Set chain residues and update those residues about the chain they belong to
+        for residue_index in chain.residue_indices:
+            residue = self.residues[residue_index]
+            chain.residues.append(residue)
+            residue.chain_index = new_chain_index
+            residue.chain = chain
+            # Set chain atoms and update those atoms about the chain they belong to
+            for atom_index in residue.atom_indices:
+                atom = self.atoms[atom_index]
+                chain.atoms.append(atom)
+                atom.chain_index = new_chain_index
+                atom.chain = chain
 
     # Set the structure from a ProDy topology
     @classmethod
@@ -118,9 +221,10 @@ class Structure:
             name = prody_atom.getName()
             element = prody_atom.getElement()
             coords = tuple(prody_atom.getCoords())
-            residue_index = prody_atom.getResindex()
-            chain_index = prody_atom.getChindex()
-            parsed_atom = Atom(name=name, element=element, coords=coords, residue_index=residue_index, chain_index=chain_index)
+            #residue_index = prody_atom.getResindex()
+            #chain_index = prody_atom.getChindex()
+            #parsed_atom = Atom(name=name, element=element, coords=coords, residue_index=residue_index, chain_index=chain_index)
+            parsed_atom = Atom(name=name, element=element, coords=coords)
             parsed_atoms.append(parsed_atom)
         # Parse residues
         for prody_residue in prody_residues:
@@ -128,15 +232,17 @@ class Structure:
             number = prody_residue.getResnum()
             icode = prody_residue.getIcode()
             atom_indices = list(prody_residue.getIndices())
-            chain_index = prody_residue.getChindices()[0]
-            parsed_residue = Residue(name=name, number=number, icode=icode, atom_indices=atom_indices, chain_index=chain_index)
+            #chain_index = prody_residue.getChindices()[0]
+            #parsed_residue = Residue(name=name, number=number, icode=icode, atom_indices=atom_indices, chain_index=chain_index)
+            parsed_residue = Residue(name=name, number=number, icode=icode, atom_indices=atom_indices)
             parsed_residues.append(parsed_residue)
         # Parse chains
         for prody_chain in prody_chains:
             name = prody_chain.getChid()
-            atom_indices = list(prody_chain.getIndices())
+            #atom_indices = list(prody_chain.getIndices())
             residue_indices = [ residue.getResindex() for residue in prody_chain.iterResidues() ]
-            parsed_chain = Chain(name=name, atom_indices=atom_indices, residue_indices=residue_indices)
+            #parsed_chain = Chain(name=name, atom_indices=atom_indices, residue_indices=residue_indices)
+            parsed_chain = Chain(name=name, residue_indices=residue_indices)
             parsed_chains.append(parsed_chain)
         return cls(atoms=parsed_atoms, residues=parsed_residues, chains=parsed_chains)
 
@@ -173,26 +279,20 @@ class Structure:
 
     # Get the structure equivalent prody topology
     def get_prody_topology (self):
-        # Return the internal perimeter value if it exists
-        if self._prody_topology:
-            return self._prody_topology
-        # If not, generate the prody topology
+        # Generate the prody topology
         pdb_filename = '.structure.pdb'
         self.generate_pdb_file(pdb_filename)
         prody_topology = prody.parsePDB(pdb_filename)
         os.remove(pdb_filename)
-        self._prody_topology = prody_topology
         return prody_topology
-
-    # The equivalent prody topology
-    prody_topology = property(get_prody_topology, None, None, "The structure equivalent prody topology")
 
     # Select atoms from the structure thus generating an atom indices list
     # Different tools may be used to make the selection:
     # - prody (default)
     def select (self, selection_string : str, logic : str = 'prody') -> Optional['Selection']:
         if logic == 'prody':
-            prody_selection = self.prody_topology.select(selection_string)
+            prody_topology = self.get_prody_topology()
+            prody_selection = prody_topology.select(selection_string)
             if not prody_selection:
                 print('WARNING: Empty selection')
                 return None
@@ -260,3 +360,23 @@ class Structure:
             chain.atom_indices = [ old_atom_indices[index] for index in chain.atom_indices ]
             chain.residue_indices = [ old_residue_indices[index] for index in chain.residue_indices ]
         return Structure(atoms=new_atoms, residues=new_residues, chains=new_chains)
+
+    # Set chains on demand
+    # If no selection is passed then the whole structure will be affected
+    # If no chain is passed then a "chain by fragment" logic will be applied
+    def chainer (self, selection : Optional['Selection'] = None, letter : Optional[str] = None):
+
+        # DANI: Aquí falta encontrar los strong bonds, para lo cual hay que extraer la lógica del workflow
+
+        # DANI: Si la cadena no existe habrá que crearla
+        #     new_chain = Chain(name=new_chain.name, residue_indices=[self.index])
+        #     self.structure.set_new_chain(new_chain) # This function updates atoms and this residue already
+
+        # DANI: Cuando el cambio esté claro para cada residuo:
+        #     residue.change_chain(new_chain)
+
+        pass
+
+    # Get a chain by its name
+    def get_chain_by_name (self, name : str) -> 'Chain':
+        return next((c for c in self.chains if c.name == name), None)
