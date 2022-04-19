@@ -89,14 +89,11 @@ def get_trajectory_subset (
     input_trajectory_filename : str,
     output_trajectory_filename : str,
     start : int = 0,
-    end : int = 0,
+    end : int = None,
     step : int = 1
 ):
-    # In case no end is passed return the only the start frame
-    if not end:
-        end = start + 1
-
-    if end < start:
+    # End must be grater than start
+    if end != None and end < start:
         raise SystemExit('End frame must be posterior to start frame')
 
     # Load the trajectory frame by frame and get only the desired frames
@@ -111,7 +108,7 @@ def get_trajectory_subset (
             reduced_trajectory = chunk
             break
     # Get further chunks
-    relative_end = end - start
+    relative_end = end - start if end != None else None
     for i, chunk in enumerate(trajectory, 1): # Start the count at 1
         if i == relative_end:
             break
