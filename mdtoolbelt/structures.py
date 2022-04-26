@@ -1,7 +1,7 @@
 # Main handler of the toolbelt
 import os
 from bisect import bisect
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union
 Coords = Tuple[float, float, float]
 
 import prody
@@ -13,7 +13,7 @@ from .selections import Selection
 # Functions for type handling
 
 # Get the residue and the residue index out of both the residue or the residue index
-def parse_residue (input_residue : Optional['Residue', int]) -> Tuple['Residue', int]:
+def parse_residue (input_residue : Union['Residue', int]) -> Tuple['Residue', int]:
     if type(input_residue) == int:
         residue_index = input_residue
         residue = residue.structure.residues[residue_index]
@@ -25,7 +25,7 @@ def parse_residue (input_residue : Optional['Residue', int]) -> Tuple['Residue',
     return residue, residue_index
 
 # Get the chain and the chain index out of both the chain or the chain index
-def parse_chain (input_chain : Optional['Chain', int]) -> Tuple['Chain', int]:
+def parse_chain (input_chain : Union['Chain', int]) -> Tuple['Chain', int]:
     if type(input_chain) == int:
         chain_index = input_chain
         chain = chain.structure.chains[chain_index]
@@ -85,7 +85,7 @@ class Residue:
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
 
     # Change the chain of the residue
-    def change_chain (self, new_chain : Optional['Chain', int]):
+    def change_chain (self, new_chain : Union['Chain', int]):
         # Get the residue current chain and remove the current residue from it
         current_chain = self.chain
         current_chain.remove_residue(self)
@@ -113,7 +113,7 @@ class Chain:
         return '<Chain ' + self.name + '>'
 
     # Add a residue to the chain
-    def add_residue (self, input_residue : Optional['Residue', int]):
+    def add_residue (self, input_residue : Union['Residue', int]):
         residue, residue_index = parse_residue(input_residue)
         sorted_residue_index = bisect(self.residue_indices, residue_index)
         self.residue_indices.insert(sorted_residue_index, residue_index)
@@ -131,7 +131,7 @@ class Chain:
         residue.chain_index = self.index
 
     # Remove a residue from the chain
-    def remove_residue (self, input_residue : Optional['Residue', int]):
+    def remove_residue (self, input_residue : Union['Residue', int]):
         residue, residue_index = parse_residue(input_residue)
         self.residue_indices.remove(residue_index) # This index MUST be in the list
         self.residues.pop(residue_index)
@@ -221,27 +221,20 @@ class Structure:
             name = prody_atom.getName()
             element = prody_atom.getElement()
             coords = tuple(prody_atom.getCoords())
-            #residue_index = prody_atom.getResindex()
-            #chain_index = prody_atom.getChindex()
-            #parsed_atom = Atom(name=name, element=element, coords=coords, residue_index=residue_index, chain_index=chain_index)
             parsed_atom = Atom(name=name, element=element, coords=coords)
             parsed_atoms.append(parsed_atom)
         # Parse residues
         for prody_residue in prody_residues:
             name = prody_residue.getResname()
-            number = prody_residue.getResnum()
+            number = int(prody_residue.getResnum())
             icode = prody_residue.getIcode()
-            atom_indices = list(prody_residue.getIndices())
-            #chain_index = prody_residue.getChindices()[0]
-            #parsed_residue = Residue(name=name, number=number, icode=icode, atom_indices=atom_indices, chain_index=chain_index)
+            atom_indices = [ int(index) for index in prody_residue.getIndices() ]
             parsed_residue = Residue(name=name, number=number, icode=icode, atom_indices=atom_indices)
             parsed_residues.append(parsed_residue)
         # Parse chains
         for prody_chain in prody_chains:
             name = prody_chain.getChid()
-            #atom_indices = list(prody_chain.getIndices())
-            residue_indices = [ residue.getResindex() for residue in prody_chain.iterResidues() ]
-            #parsed_chain = Chain(name=name, atom_indices=atom_indices, residue_indices=residue_indices)
+            residue_indices = [ int(residue.getResindex()) for residue in prody_chain.iterResidues() ]
             parsed_chain = Chain(name=name, residue_indices=residue_indices)
             parsed_chains.append(parsed_chain)
         return cls(atoms=parsed_atoms, residues=parsed_residues, chains=parsed_chains)
