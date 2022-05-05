@@ -103,10 +103,16 @@ def get_trajectory_subset (
         trajectory = mdt.iterload(input_trajectory_filename, chunk=1)
     # Get the first chunk
     reduced_trajectory = None
+    frame_count = 0 # This count works only in case the start frame is out of range, for the logs
     for i, chunk in enumerate(trajectory):
+        frame_count = i
         if i == start:
             reduced_trajectory = chunk
             break
+    # if we have nothing at this point then it means our start is out of the frames range
+    if not reduced_trajectory:
+        frame_count += 1
+        raise SystemExit('The trajectory has ' + str(frame_count) + ' frames so we can not start at frame ' + str(start))
     # Get further chunks
     relative_end = end - start if end != None else None
     for i, chunk in enumerate(trajectory, 1): # Start the count at 1
