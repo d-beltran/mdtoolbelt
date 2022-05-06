@@ -20,11 +20,11 @@ requirements:
     - pip
     - python
   run:
+    # The limitant factor to not upgrade more python is pytraj
+    - python >=3.7,<3.8.0a0
     - gromacs
     - mdtraj
     - prody
-    # The limitant factor to not upgrade more python is pytraj
-    - python >=3.7,<3.8.0a0
     - vmd
     - pytraj
 
