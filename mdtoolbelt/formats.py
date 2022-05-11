@@ -41,7 +41,7 @@ def get_format_set_suitable_function (
             for function_format_set in function.format_sets:
                 # Check format keys are compatible
                 if not check_format_sets_compability(request_format_set, function_format_set):
-                    raise ValueError('Format keys are not compatible with function ' + str(function.__name__))
+                    raise SystemExit('Format keys are not compatible with function ' + str(function.__name__))
                 # Check the function inputs to be fulfilled by the request inputs
                 required_inputs = function_format_set.get('inputs', None)
                 available_inputs = request_format_set.get('inputs', None)
@@ -115,9 +115,9 @@ def check_format_sets_compability (request_format_set : dict, function_format_se
                 print('ERROR: Missing ' + argument + ' argument')
                 return False
     # Check the request output keyowrds to exist in the function output arguments
-    required_outputs = request_format_set.get('outputs', None)
-    if required_outputs:
-        required_output_arguments = required_outputs.keys()
+    available_outputs = request_format_set.get('outputs', None)
+    if available_outputs:
+        required_output_arguments = available_outputs.keys()
         available_outputs = function_format_set.get('outputs', None)
         if not available_outputs:
             print('ERROR: Missing outputs')

@@ -1,8 +1,9 @@
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 from .conversions import convert
+from .subsets import get_trajectory_subset
 from .vmd_spells import chainer
-from .mdt_spells import split_merged_trajectories, get_trajectory_subset
+from .mdt_spells import split_merged_trajectories
 
 # Define console call for mdtoolbelt
 parser = ArgumentParser(description="Call a tool from mdtoolbelt", formatter_class=RawTextHelpFormatter)

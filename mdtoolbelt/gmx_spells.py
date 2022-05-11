@@ -171,3 +171,95 @@ merge_and_convert_trajectories.format_sets = [
         }
     }
 ]
+
+# Get specific frames from a trajectory
+def get_trajectory_subset (
+    input_trajectory_filename : str,
+    output_trajectory_filename : str,
+    start : int = 0,
+    end : int = None,
+    step : int = 1
+):
+    # We need an output trajectory filename
+    if not output_trajectory_filename:
+        raise SystemExit('Missing output trajectory filename')
+
+    # End must be grater than start
+    if end != None and end < start:
+        raise SystemExit('End frame must be posterior to start frame')
+
+    # Read the first frame of the trajectory and capture the time per frame from gromacs logs
+    residual_frame = '.trash.xtc'
+    p = Popen([
+        "echo",
+        "System",
+    ], stdout=PIPE)
+    logs = run([
+        "gmx",
+        "trjconv",
+        "-f",
+        input_trajectory_filename,
+        "-o",
+        residual_frame,
+        "-dump",
+        "0",
+        "-quiet"
+    ], stdin=p.stdout, stderr=PIPE).stderr.decode()
+    os.remove(residual_frame)
+
+    # Mine frame times from the logs
+    trajectory_start_time = None
+    trajectory_first_frame_time = None
+    for line in logs.split('\n'):
+        if 'Reading frame       0' in line:
+            trajectory_start_time = float(line.strip().split()[-1])
+            continue
+        if 'Reading frame       1' in line:
+            trajectory_first_frame_time = float(line.strip().split()[-1])
+            break
+    frame_time = trajectory_first_frame_time - trajectory_start_time
+
+    # Convert requested frames to time
+    # We substract 1 from the end to make it coherent with python and other tool's logic
+    # i.e. last index is not included in the selection (gromacs would return the last frame also)
+    strat_time = trajectory_start_time + start * frame_time
+    end_time = trajectory_start_time + (end-1) * frame_time
+    step_time = step * frame_time
+
+    # Now run gromacs trjconv command in order to extract the desired frames
+    p = Popen([
+        "echo",
+        "System",
+    ], stdout=PIPE)
+    logs = run([
+        "gmx",
+        "trjconv",
+        "-f",
+        input_trajectory_filename,
+        "-o",
+        output_trajectory_filename,
+        "-b",
+        str(strat_time),
+        "-e",
+        str(end_time),
+        "-dt",
+        str(step_time),
+        "-quiet"
+    ], stdin=p.stdout, stderr=PIPE).stderr.decode()
+
+    # If output has not been generated then warn the user
+    if not os.path.exists(output_trajectory_filename):
+        print(logs)
+        raise SystemExit('Something went wrong with Gromacs')
+
+
+get_trajectory_subset.format_sets = [
+    {
+        'inputs': {
+            'input_trajectory_filename': {'xtc', 'trr'}
+        },
+        'outputs': {
+            'output_trajectory_filename': {'xtc', 'trr'}
+        }
+    }
+]

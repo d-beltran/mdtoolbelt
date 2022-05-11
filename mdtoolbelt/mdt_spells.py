@@ -84,6 +84,7 @@ merge_and_convert_trajectories_unefficient.format_sets = [
 ]
 
 # Get specific frames from a trajectory
+# WARNING: This function is time unefficient
 def get_trajectory_subset (
     input_structure_filename : str,
     input_trajectory_filename : str,
@@ -92,6 +93,10 @@ def get_trajectory_subset (
     end : int = None,
     step : int = 1
 ):
+    # We need an output trajectory filename
+    if not output_trajectory_filename:
+        raise SystemExit('Missing output trajectory filename')
+
     # End must be grater than start
     if end != None and end < start:
         raise SystemExit('End frame must be posterior to start frame')
@@ -109,7 +114,7 @@ def get_trajectory_subset (
         if i == start:
             reduced_trajectory = chunk
             break
-    # if we have nothing at this point then it means our start is out of the frames range
+    # If we have nothing at this point then it means our start is out of the frames range
     if not reduced_trajectory:
         frame_count += 1
         raise SystemExit('The trajectory has ' + str(frame_count) + ' frames so we can not start at frame ' + str(start))

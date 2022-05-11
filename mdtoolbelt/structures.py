@@ -248,6 +248,17 @@ class Structure:
         prody_topology = prody.parsePDB(pdb_filename)
         return cls.from_prody(prody_topology)
 
+    # Fix atom elements by gueesing them when missing
+    # Set all elements with the first letter upper and the second (if any) lower
+    def fix_atom_elements (self):
+        for atom in self.atoms:
+            # Make sure elements have the first letter cap and the second letter not cap
+            if atom.element:
+                atom.element = first_cap_only(atom.element)
+            # If elements are missing then guess them from atom names
+            else:
+                atom.element = guess_name_element(atom.name)
+
     # Generate a pdb file with current structure
     def generate_pdb_file(self, pdb_filename : str):
         with open(pdb_filename, "w") as file:
@@ -267,7 +278,7 @@ class Structure:
                 element = atom.element
                 atom_line = ('ATOM  ' + index + ' ' + name + ' ' + residue_name
                     + chain + residue_number + icode + '   ' + x_coord + y_coord + z_coord
-                    + '  ' + occupancy + '  ' + temp_factor + ' ' + element).ljust(80) + '\n'
+                    + '  ' + occupancy + '  ' + temp_factor + '           ' + element).ljust(80) + '\n'
                 file.write(atom_line)
 
     # Get the structure equivalent prody topology
@@ -373,3 +384,47 @@ class Structure:
     # Get a chain by its name
     def get_chain_by_name (self, name : str) -> 'Chain':
         return next((c for c in self.chains if c.name == name), None)
+
+
+### Auxiliar functions ###
+
+# Given a string with 1 or 2 characters, return a new string with the first letter cap and the second letter not cap (if any)
+def first_cap_only (name : str) -> str:
+    if len(name) == 1:
+        return name.upper()
+    first_character = name[0].upper()
+    second_character = name[1].lower()
+    return first_character + second_character
+
+# Guess an atom element from its name
+supported_elements = [ 'C', 'N', 'O', 'H', 'P', 'S', 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe' ]
+def guess_name_element (name: str) -> str:
+    length = len(name)
+    next_character = None
+    for i, character in enumerate(name):
+        # Get the next character, since element may be formed by 2 letters
+        if i < length - 1:
+            next_character = name[i+1]
+            # If next character is not a string then ignore it
+            if not next_character.isalpha():
+                next_character = None
+        # Try to get all possible matches between the characters and the supported atoms
+        # First letter is always caps
+        character = character.upper()
+        # First try to match both letters together
+        if next_character:
+            # Start with the second letter in caps
+            next_character = next_character.upper()
+            both = character + next_character
+            if both in supported_elements:
+                return both
+            # Continue with the second letter in lowers
+            next_character = next_character.lower()
+            both = character + next_character
+            if both in supported_elements:
+                return both
+        # Finally, try with the first character alone
+        if character in supported_elements:
+            return character
+    raise SystemExit(
+        "ERROR: Not recognized element in '" + name + "'")
