@@ -292,9 +292,18 @@ class Structure:
 
     # Select atoms from the structure thus generating an atom indices list
     # Different tools may be used to make the selection:
-    # - prody (default)
-    def select (self, selection_string : str, logic : str = 'prody') -> Optional['Selection']:
-        if logic == 'prody':
+    # - vmd (default)
+    # - prody
+    def select (self, selection_string : str, syntax : str = 'vmd') -> Optional['Selection']:
+        if syntax == 'vmd':
+            # Generate a pdb for vmd to read it
+            pdb_filename = '.structure.pdb'
+            self.generate_pdb_file(pdb_filename)
+            # Use vmd to find atom indices
+            atom_indices = get_vmd_selection_atom_indices(pdb_filename, selection_string)
+            os.remove(pdb_filename)
+            return Selection(atom_indices)
+        if syntax == 'prody':
             prody_topology = self.get_prody_topology()
             prody_selection = prody_topology.select(selection_string)
             if not prody_selection:

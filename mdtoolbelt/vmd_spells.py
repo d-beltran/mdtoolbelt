@@ -201,3 +201,153 @@ merge_and_convert_trajectories.format_sets = [
         }
     }
 ]
+
+# Given an atom selection in vmd syntax, return the list of atom indices it corresponds to
+def get_vmd_selection_atom_indices (input_structure_filename : str, selection : str) -> List[int]:
+    
+    # Prepare a script for VMD to run. This is Tcl language
+    # The output of the script will be written to a txt file
+    atom_indices_filename = '.vmd_output.txt'
+    with open(commands_filename, "w") as file:
+        # Select the specified atoms
+        file.write('set selection [atomselect top "' + selection + '"]\n')
+        # Save atom indices from the selection
+        file.write('set indices [$selection list]\n')
+        # Write atom indices to a file
+        file.write('set indices_file [open ' + atom_indices_filename + ' w]\n')
+        file.write('puts $indices_file $indices\n')
+        file.write('exit\n')
+
+    # Run VMD
+    logs = run([
+        "vmd",
+        input_structure_filename,
+        "-e",
+        commands_filename,
+        "-dispdev",
+        "none"
+    ], stdout=PIPE).stdout.decode()
+
+    # Read the VMD output
+    with open(atom_indices_filename, 'r') as file:
+        raw_atom_indices = file.read()
+
+    # Parse the atom indices string to an array of integers
+    atom_indices = [ int(i) for i in raw_atom_indices.split() ]
+    
+    # Remove trahs files
+    trash_files = [ commands_filename, atom_indices_filename ]
+    for trash_file in trash_files:
+        os.remove(trash_file)
+
+    return atom_indices
+
+# Set a function to retrieve strong bonds between 2 atom selections
+# Atom selections must be in VMD selection syntax
+# DANI: Lo tengo aquí pero no lo uso para nada todavia
+def get_strong_bonds (structure_filename : str, atom_selection_1 : str, atom_selection_2 : str) -> list:
+
+    # Prepare a script for the VMD to automate the commands. This is Tcl lenguage
+    output_index_1_file = 'index1.text'
+    output_index_2_file = 'index2.text'
+    output_bonds_file = 'bonds.text'
+    with open(commands_filename, "w") as file:
+        # Select the specified atoms in selection 1
+        file.write('set sel1 [atomselect top "' + atom_selection_1 + '"]\n')
+        # Save all atom index in the selection
+        file.write('set index1 [$sel1 list]\n')
+        # Write those index to a file
+        file.write('set indexfile1 [open ' + output_index_1_file + ' w]\n')
+        file.write('puts $indexfile1 $index1\n')
+        # Save all strong atoms in the selection
+        file.write('set bonds [$sel1 getbonds]\n')
+        # Write those bonds to a file
+        file.write('set bondsfile [open ' + output_bonds_file + ' w]\n')
+        file.write('puts $bondsfile $bonds\n')
+        # Select the specified atoms in selection 2
+        file.write('set sel2 [atomselect top "' + atom_selection_2 + '"]\n')
+        # Save all atom index in the selection
+        file.write('set index2 [$sel2 list]\n')
+        # Write those index to a file
+        file.write('set indexfile2 [open ' + output_index_2_file + ' w]\n')
+        file.write('puts $indexfile2 $index2\n')
+        file.write('exit\n')
+        
+    # Run VMD
+    logs = run([
+        "vmd",
+        structure_filename,
+        "-e",
+        commands_filename,
+        "-dispdev",
+        "none"
+    ], stdout=PIPE).stdout.decode()
+    
+    # Read the VMD output
+    with open(output_index_1_file, 'r') as file:
+        raw_index_1 = file.read()
+    with open(output_bonds_file, 'r') as file:
+        raw_bonds = file.read()
+    with open(output_index_2_file, 'r') as file:
+        raw_index_2 = file.read()
+
+    # Remove vmd files since they are no longer usefull
+    for f in [ commands_filename, output_index_1_file, output_index_2_file, output_bonds_file ]:
+        os.remove(f)
+
+    # Sometimes there is a breakline at the end of the raw bonds string and it must be removed
+    # Add a space at the end of the string to make the parser get the last character
+    raw_bonds = raw_bonds.replace('\n', '') + ' '
+    
+    # Raw indexes is a string with all indexes separated by spaces
+    index_1 = [ int(i) for i in raw_index_1.split() ]
+    index_2 = [ int(i) for i in raw_index_2.split() ]
+    
+    # Parse the raw bonds string to a list of atom bonds (i.e. a list of lists of integers)
+    # Raw bonds format is (for each atom in the selection):
+    # '{index1, index2, index3 ...}' with the index of each connected atom
+    # 'index' if there is only one connected atom
+    # '{}' if there are no connected atoms
+    bonds_per_atom = []
+    last_atom_index = ''
+    last_atom_bonds = []
+    in_brackets = False
+    for character in raw_bonds:
+        if character == ' ':
+            if len(last_atom_index) > 0:
+                if in_brackets:
+                    last_atom_bonds.append(int(last_atom_index))
+                else:
+                    bonds_per_atom.append([int(last_atom_index)])
+                last_atom_index = ''
+            continue
+        if character == '{':
+            in_brackets = True
+            continue
+        if character == '}':
+            if last_atom_index == '':
+                bonds_per_atom.append([])
+                in_brackets = False
+                continue
+            last_atom_bonds.append(int(last_atom_index))
+            last_atom_index = ''
+            bonds_per_atom.append(last_atom_bonds)
+            last_atom_bonds = []
+            in_brackets = False
+            continue
+        last_atom_index += character
+        
+    # At this point indexes and bonds from the first selection should match in number
+    if len(index_1) != len(bonds_per_atom):
+        raise ValueError('Indexes (' + str(len(index_1)) + ') and atom bonds (' +  str(len(bonds_per_atom)) + ') do not match in number')
+        
+    # Now get all strong bonds which include an index from the atom selection 2
+    crossed_bonds = []
+    for i, index in enumerate(index_1):
+        bonds = bonds_per_atom[i]
+        for bond in bonds:
+            if bond in index_2:
+                crossed_bond = (index, bond)
+                crossed_bonds.append(crossed_bond)
+                
+    return crossed_bonds
