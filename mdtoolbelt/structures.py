@@ -303,6 +303,9 @@ class Structure:
             # Use vmd to find atom indices
             atom_indices = get_vmd_selection_atom_indices(pdb_filename, selection_string)
             os.remove(pdb_filename)
+            if len(atom_indices) == 0:
+                print('WARNING: Empty selection')
+                return None
             return Selection(atom_indices)
         if syntax == 'prody':
             prody_topology = self.get_prody_topology()
@@ -311,6 +314,8 @@ class Structure:
                 print('WARNING: Empty selection')
                 return None
             return Selection.from_prody(prody_selection)
+        print('WARNING: Syntax ' + syntax + ' is not supported')
+        return None
     
     # Create a new structure from the current using a selection to filter atoms
     def filter (self, selection : 'Selection') -> 'Structure':
