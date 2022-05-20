@@ -7,6 +7,7 @@ Coords = Tuple[float, float, float]
 import prody
 
 from .selections import Selection
+from .vmd_spells import get_vmd_selection_atom_indices
 
 # ------------------------------------------------------------------------------------
 
@@ -319,59 +320,83 @@ class Structure:
         new_residues = []
         new_chains = []
         # Get the selected atoms
-        for index in selection.atom_indices:
-            # Make a copy of the selected atoms in order to not modify the original ones
-            original_atom = self.atoms[index]
+        # Generate dictionaries with new indexes as keys and previous indexes as values for atoms, residues and chains
+        # This is done with this structure for the residues and chains further to find the new indices fast
+        new_atom_indices = {}
+        # Collect also original indices to related atom residues and chains
+        original_atom_residue_indices = []
+        original_atom_chain_indices = []
+        for new_index, original_index in enumerate(selection.atom_indices):
+            # Make a copy of the selected atom in order to not modify the original one
+            original_atom = self.atoms[original_index]
             new_atom = Atom(
                 name=original_atom.name,
                 element=original_atom.element,
                 coords=original_atom.coords,
-                residue_index=original_atom.residue_index,
-                chain_index=original_atom.chain_index
             )
             new_atoms.append(new_atom)
+            # Save old and new indices in order to reconfigure all indices later
+            new_atom_indices[original_index] = new_index
+            original_atom_residue_indices.append(original_atom.residue_index)
+            original_atom_chain_indices.append(original_atom.chain_index)
         # Find the selected residues
-        selected_residue_indices = list(set([ atom.residue_index for atom in new_atoms ]))
-        for index in selected_residue_indices:
-            original_residue = self.residues[index]
+        selected_residue_indices = list(set(original_atom_residue_indices))
+        # Repeat the original/new indices backup we did before
+        new_residue_indices = {}
+        original_residue_atom_indices = []
+        original_residue_chain_indices = []
+        for new_index, original_index in enumerate(selected_residue_indices):
+            # Make a copy of the selected residue in order to not modify the original one
+            original_residue = self.residues[original_index]
             new_residue = Residue(
                 name=original_residue.name,
                 number=original_residue.number,
                 icode=original_residue.icode,
-                atom_indices=original_residue.atom_indices,
-                chain_index=original_residue.chain_index
             )
             new_residues.append(new_residue)
+            # Save old and new indices in order to reconfigure all indices later
+            new_residue_indices[original_index] = new_index
+            original_residue_atom_indices.append(original_residue.atom_indices)
+            original_residue_chain_indices.append(original_residue.chain_index)
         # Find the selected chains
-        selected_chain_indices = list(set([ atom.chain_index for atom in new_atoms ]))
-        for index in selected_chain_indices:
-            original_chain = self.chains[index]
+        selected_chain_indices = list(set(original_residue_chain_indices))
+        # Repeat the original/new indices backup we did before
+        new_chain_indices = {}
+        original_chain_atom_indices = []
+        original_chain_residue_indices = []
+        for new_index, original_index in enumerate(selected_chain_indices):
+            # Make a copy of the selected chain in order to not modify the original one
+            original_chain = self.chains[original_index]
             new_chain = Chain(
                 name=original_chain.name,
-                atom_indices=original_chain.atom_indices,
-                residue_indices=original_chain.residue_indices
             )
             new_chains.append(new_chain)
-        # Generate dictionaries with new indexes as keys and previous indexes as values for atoms, residues and chains
-        old_atom_indices = {}
-        for i, index in enumerate(selection.atom_indices):
-            old_atom_indices[index] = i
-        old_residue_indices = {}
-        for i, index in enumerate(selected_residue_indices):
-            old_residue_indices[index] = i
-        old_chain_indices = {}
-        for i, index in enumerate(selected_chain_indices):
-            old_chain_indices[index] = i
+            # Save old and new indices in order to reconfigure all indices later
+            new_chain_indices[original_index] = new_index
+            original_chain_atom_indices.append(original_chain.atom_indices)
+            original_chain_residue_indices.append(original_chain.residue_indices)
         # Finally, reset indices in all instances
-        for atom in new_atoms:
-            atom.residue_index = old_residue_indices[atom.residue_index]
-            atom.chain_index = old_chain_indices[atom.chain_index]
-        for residue in new_residues:
-            residue.atom_indices = [ old_atom_indices[index] for index in residue.atom_indices ]
-            residue.chain_index = old_chain_indices[residue.chain_index]
-        for chain in new_chains:
-            chain.atom_indices = [ old_atom_indices[index] for index in chain.atom_indices ]
-            chain.residue_indices = [ old_residue_indices[index] for index in chain.residue_indices ]
+        for a, atom in enumerate(new_atoms):
+            atom.residue_index = new_residue_indices[ original_atom_residue_indices[a] ]
+            atom.chain_index = new_chain_indices[ original_atom_chain_indices[a] ]
+        for r, residue in enumerate(new_residues):
+            residue.atom_indices = []
+            for original_index in original_residue_atom_indices[r]:
+                new_index = new_atom_indices.get(original_index, None)
+                if new_index != None:
+                    residue.atom_indices.append(new_index)
+            residue.chain_index = new_chain_indices[ original_residue_chain_indices[r] ]
+        for c, chain in enumerate(new_chains):
+            chain.atom_indices = []
+            for original_index in original_chain_atom_indices[c]:
+                new_index = new_atom_indices.get(original_index, None)
+                if new_index != None:
+                    chain.atom_indices.append(new_index)
+            chain.residue_indices = []
+            for original_index in original_chain_residue_indices[c]:
+                new_index = new_residue_indices.get(original_index, None)
+                if new_index != None:
+                    chain.residue_indices.append(new_index)
         return Structure(atoms=new_atoms, residues=new_residues, chains=new_chains)
 
     # Set chains on demand
