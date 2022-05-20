@@ -2,3 +2,4 @@ mdtoolbelt.egg-info
 mdtoolbelt/__pycache__
 dist
 build
+tests
