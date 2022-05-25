@@ -1,5 +1,6 @@
 # Main handler of the toolbelt
 import os
+import math
 from bisect import bisect
 from typing import Optional, Tuple, List, Union
 Coords = Tuple[float, float, float]
@@ -423,6 +424,16 @@ class Structure:
     # Get a chain by its name
     def get_chain_by_name (self, name : str) -> 'Chain':
         return next((c for c in self.chains if c.name == name), None)
+
+### Related functions ###
+
+# Calculate the distance between two atoms
+coordinate_indices = { 'x': 0, 'y': 1, 'z': 2 }
+def caluclate_distance (atom_1 : Atom, atom_2 : Atom) -> float:
+    squared_distances_sum = 0
+    for i in coordinate_indices.values():
+        squared_distances_sum += (atom_1.coords[i] - atom_2.coords[i])**2
+    return math.sqrt(squared_distances_sum)
 
 
 ### Auxiliar functions ###
