@@ -2,43 +2,13 @@
 import os
 import math
 from bisect import bisect
-from typing import Optional, Tuple, List, Union
+from typing import Optional, Tuple, List
 Coords = Tuple[float, float, float]
 
 import prody
 
 from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices
-
-# ------------------------------------------------------------------------------------
-
-# Functions for type handling
-
-# Get the residue and the residue index out of both the residue or the residue index
-def parse_residue (input_residue : Union['Residue', int]) -> Tuple['Residue', int]:
-    if type(input_residue) == int:
-        residue_index = input_residue
-        residue = residue.structure.residues[residue_index]
-    elif type(input_residue) == 'Residue':
-        residue = input_residue
-        residue_index = residue.index
-    else:
-        raise ValueError('Unknow type when expecting Residue or int')
-    return residue, residue_index
-
-# Get the chain and the chain index out of both the chain or the chain index
-def parse_chain (input_chain : Union['Chain', int]) -> Tuple['Chain', int]:
-    if type(input_chain) == int:
-        chain_index = input_chain
-        chain = chain.structure.chains[chain_index]
-    elif type(input_chain) == 'Chain':
-        chain = input_chain
-        chain_index = chain.index
-    else:
-        raise ValueError('Unknow type when expecting Chain or int')
-    return chain, chain_index
-
-# ------------------------------------------------------------------------------------
 
 # An atom
 class Atom:
@@ -52,15 +22,74 @@ class Atom:
         self.coords = coords
         # Set variables to store references to other related instances
         # These variables will be set further by the structure
-        self.structure = None
-        self.index = None
-        self.residue = None
-        self.chain = None
-        self.residue_index = None
-        self.chain_index = None
+        self._structure = None
+        self._index = None
+        self._residue_index = None
 
     def __repr__ (self):
         return '<Atom ' + self.name + '>'
+
+    # The parent structure (read only)
+    # This value is set by the structure itself
+    def get_structure (self):
+        return self._structure
+    structure = property(get_structure, None, None, "The parent structure (read only)")
+
+    # The residue index according to parent structure residues (read only)
+    # This value is set by the structure itself
+    def get_index (self):
+        return self._index
+    index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
+
+    # The atom residue index according to parent structure residues
+    # If residue index is set then make changes in all the structure to make this change coherent
+    def get_residue_index (self) -> int:
+        return self._residue_index
+    def set_residue_index (self, new_residue_index : int):
+        # If there is not strucutre yet it means the residue is beeing set before the structure
+        # We just save the residue index and wait for the structure to be set
+        if not self.structure:
+            self._residue_index = new_residue_index
+            return
+        # Relational indices are updated through a top-down hierarchy
+        # Affected residues are the ones to update this atom internal residue index
+        current_residue = self.residue
+        current_residue.remove_atom(self)
+        new_residue = self.structure.residues[new_residue_index]
+        new_residue.add_atom(self)
+    residue_index = property(get_residue_index, set_residue_index, None, "The atom residue index according to parent structure residues")
+
+    # The atom residue
+    # If residue is set then make changes in all the structure to make this change coherent
+    def get_residue (self) -> 'Residue':
+        # If there is not strucutre yet it means the atom is beeing set before the structure
+        # In this case it is not possible to get related residues in the structure
+        if not self.structure:
+            return None
+        # Get the residue in the structure according to the residue index
+        return self.structure.residues[self.residue_index]
+    def set_residue (self, new_residue : 'Residue'):
+        # Find the new residue index and set it as the atom residue index
+        # Note that the residue must be set in the structure already
+        new_residue_index = new_residue.index
+        if new_residue_index == None:
+            raise ValueError('Residue ' + str(new_residue) + ' is not set in the structure')
+        self.set_residue_index(new_residue_index)
+    residue = property(get_residue, set_residue, None, "The atom residue")
+
+    # The atom chain index according to parent structure chains (read only)
+    # In order to change the chain index it must be changed in the atom residue
+    def get_chain_index (self) -> int:
+        return self.residue.chain_index
+    chain_index = property(get_chain_index, None, None, "The atom chain index according to parent structure chains (read only)")
+
+    # The atom chain (read only)
+    # In order to change the chain it must be changed in the atom residue
+    def get_chain (self) -> 'Chain':
+        # Get the chain in the structure according to the chain index
+        return self.structure.chains[self.chain_index]
+    chain = property(get_chain, None, None, "The atom chain (read only)")
+
 
 
 # A residue
@@ -69,84 +98,226 @@ class Residue:
         name : Optional[str] = None,
         number : Optional[int] = None,
         icode : Optional[str] = None,
-        atom_indices : List[int] = [],
         ):
         self.name = name
         self.number = number
         self.icode = icode
-        self.atom_indices = atom_indices
         # Set variables to store references to other related instaces
         # These variables will be set further by the structure
-        self.structure = None
-        self.index = None
-        self.atoms = []
-        self.chain = None
-        self.chain_index = None
+        self._structure = None
+        self._index = None
+        self._atom_indices = []
+        self._chain_index = None
 
     def __repr__ (self):
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
 
-    # Change the chain of the residue
-    def change_chain (self, new_chain : Union['Chain', int]):
-        # Get the residue current chain and remove the current residue from it
+    def __eq__ (self, other):
+        return self.name == other.name and self.number == other.number and self.icode == other.icode
+
+    # The parent structure (read only)
+    # This value is set by the structure itself
+    def get_structure (self):
+        return self._structure
+    structure = property(get_structure, None, None, "The parent structure (read only)")
+
+    # The residue index according to parent structure residues (read only)
+    # This value is set by the structure itself
+    def get_index (self):
+        return self._index
+    index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
+
+    # The atom indices according to parent structure atoms for atoms in this residue
+    # If atom indices are set then make changes in all the structure to make this change coherent
+    def get_atom_indices (self) -> List[int]:
+        return self._atom_indices
+    def set_atom_indices (self, new_atom_indices : List[int]):
+        # If there is not strucutre yet it means the residue is beeing set before the structure
+        # We just save atom indices and wait for the structure to be set
+        if not self.structure:
+            self._atom_indices = new_atom_indices
+            return
+        # Update the current atoms
+        for atom in self.atoms:
+            atom._residue_index = None
+        # Update the new atoms
+        for index in new_atom_indices:
+            atom = self.structure.atoms[index]
+            atom._residue_index = self.index
+        # Now new indices are coherent and thus we can save them
+        self._atom_indices = new_atom_indices
+    atom_indices = property(get_atom_indices, set_atom_indices, None, "The atom indices according to parent structure atoms for atoms in this residue")
+
+    # The atoms in this residue
+    # If atoms are set then make changes in all the structure to make this change coherent
+    def get_atoms (self) -> List['Atom']:
+        # If there is not strucutre yet it means the chain is beeing set before the structure
+        # In this case it is not possible to get related atoms in the structure
+        if not self.structure:
+            return []
+        # Get atoms in the structure according to atom indices
+        atoms = self.structure.atoms
+        return [ atoms[atom_index] for atom_index in self.atom_indices ]
+    def set_atoms (self, new_atoms : List['Atom']):
+        # Find indices for new atoms and set their indices as the new atom indices
+        # Note that atoms must be set in the structure already
+        new_atom_indices = []
+        for new_atom in new_atoms:
+            new_atom_index = new_atom.index
+            if new_atom_index == None:
+                raise ValueError('Atom ' + str(new_atom) + ' is not set in the structure')
+            new_atom_indices.append(new_atom_index)
+        self.set_atom_indices(new_atom_indices)
+    atoms = property(get_atoms, set_atoms, None, "The atoms in this residue")
+
+    # Add an atom to the residue
+    def add_atom (self, new_atom : 'Atom'):
+        # Insert the new atom index in the list of atom indices keeping the order
+        new_atom_index = new_atom.index
+        sorted_atom_index = bisect(self.atom_indices, new_atom_index)
+        self.atom_indices.insert(sorted_atom_index, new_atom_index)
+        # Update the atom internal index
+        atom._residue_index = self.index
+
+    # Remove an atom from the residue
+    def remove_atom (self, current_atom : 'Atom'):
+        # Remove the current atom index from the atom indices list
+        self.atom_indices.remove(current_atom.index) # This index MUST be in the list
+        # Update the atom internal index
+        atom._residue_index = None
+
+    # The residue chain index according to parent structure chains
+    # If chain index is set then make changes in all the structure to make this change coherent
+    def get_chain_index (self) -> int:
+        return self._chain_index
+    def set_chain_index (self, new_chain_index : int):
+        # If there is not strucutre yet it means the chain is beeing set before the structure
+        # We just save the chain index and wait for the structure to be set
+        if not self.structure:
+            self._chain_index = new_chain_index
+            return
+        # Relational indices are updated through a top-down hierarchy
+        # Affected chains are the ones to update this residue internal chain index
         current_chain = self.chain
         current_chain.remove_residue(self)
-        # Get the new chain to be set
-        new_chain, new_chain_index = parse_chain(new_chain)
+        new_chain = self.structure.chains[new_chain_index]
         new_chain.add_residue(self)
+    chain_index = property(get_chain_index, set_chain_index, None, "The residue chain index according to parent structure chains")
+
+    # The residue chain
+    # If chain is set then make changes in all the structure to make this change coherent
+    def get_chain (self) -> 'Chain':
+        # If there is not strucutre yet it means the residue is beeing set before the structure
+        # In this case it is not possible to get related chain in the structure
+        if not self.structure:
+            return []
+        # Get the chain in the structure according to the chain index
+        return self.structure.chains[self.chain_index]
+    def set_chain (self, new_chain : 'Chain'):
+        # Find the new chain index and set it as the residue chain index
+        # Note that the chain must be set in the structure already
+        new_chain_index = new_chain.index
+        if new_chain_index == None:
+            raise ValueError('Chain ' + str(new_chain) + ' is not set in the structure')
+        self.set_chain_index(new_chain_index)
+    chain = property(get_chain, set_chain, None, "The residue chain")
+    
 
 # A chain
 class Chain:
     def __init__ (self,
         name : Optional[str] = None,
-        residue_indices : List[int] = [],
         ):
         self.name = name
-        self.residue_indices = residue_indices
         # Set variables to store references to other related instaces
         # These variables will be set further by the structure
-        self.structure = None
-        self.index = None
-        self.residues = []
-        self.atoms = []
-        self.atom_indices = []
+        self._structure = None
+        self._index = None
+        self.residue_indices = []
 
     def __repr__ (self):
         return '<Chain ' + self.name + '>'
 
+    # The parent structure (read only)
+    # This value is set by the structure itself
+    def get_structure (self):
+        return self._structure
+    structure = property(get_structure, None, None, "The parent structure (read only)")
+
+    # The residue index according to parent structure residues (read only)
+    # This value is set by the structure itself
+    def get_index (self):
+        return self._index
+    index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
+
+    # The residue indices according to parent structure residues for residues in this chain
+    # If residue indices are set then make changes in all the structure to make this change coherent
+    def get_residue_indices (self) -> List[int]:
+        return self._residue_indices
+    def set_residue_indices (self, new_residue_indices : List[int]):
+        # If there is not strucutre yet it means the chain is beeing set before the structure
+        # We just save residue indices and wait for the structure to be set
+        if not self.structure:
+            self._residue_indices = new_residue_indices
+            return
+        # Update the current residues
+        for residue in self.residues:
+            residue._chain_index = None
+        # Update the new residues
+        for index in new_residue_indices:
+            residue = self.structure.residues[index]
+            residue._chain_index = self.index
+        # Now new indices are coherent and thus we can save them
+        self._residue_indices = new_residue_indices
+    residue_indices = property(get_residue_indices, set_residue_indices, None, "The residue indices according to parent structure residues for residues in this residue")
+
+    # The residues in this chain
+    # If residues are set then make changes in all the structure to make this change coherent
+    def get_residues (self) -> List['Residue']:
+        # If there is not strucutre yet it means the chain is beeing set before the structure
+        # In this case it is not possible to get related residues in the structure
+        if not self.structure:
+            return []
+        # Get residues in the structure according to residue indices
+        residues = self.structure.residues
+        return [ residues[residue_index] for residue_index in self.residue_indices ]
+    def set_residues (self, new_residues : List['Residue']):
+        # Find indices for new residues and set their indices as the new residue indices
+        # Note that residues must be set in the structure already
+        new_residue_indices = []
+        for new_residue in new_residues:
+            new_residue_index = new_residue.index
+            if new_residue_index == None:
+                raise ValueError('Residue ' + str(new_residue) + ' is not set in the structure')
+            new_residue_indices.append(new_residue_index)
+        self.set_residue_indices(new_residue_indices)
+    residues = property(get_residues, set_residues, None, "The residues in this chain")
+
     # Add a residue to the chain
-    def add_residue (self, input_residue : Union['Residue', int]):
-        residue, residue_index = parse_residue(input_residue)
-        sorted_residue_index = bisect(self.residue_indices, residue_index)
-        self.residue_indices.insert(sorted_residue_index, residue_index)
-        self.residues.insert(sorted_residue_index, residue)
-        for atom_index in residue.atom_indices:
-            sorted_atom_index = bisect(self.atom_indices, atom_index)
-            self.atom_indices.insert(sorted_atom_index, atom_index)
-            atom = self.structure.atoms[atom_index]
-            self.atoms.insert(sorted_atom_index, atom)
-            # Update atoms themselves
-            atom.chain = self
-            atom.chain_index = self.index
-        # Update the residue itself
-        residue.chain = self
+    def add_residue (self, residue : 'Residue'):
+        # Insert the new residue index in the list of residue indices keeping the order
+        sorted_residue_index = bisect(self.residue_indices, residue.index)
+        self.residue_indices.insert(sorted_residue_index, residue.index)
+        # Update the residue internal chain index
         residue.chain_index = self.index
 
     # Remove a residue from the chain
-    def remove_residue (self, input_residue : Union['Residue', int]):
-        residue, residue_index = parse_residue(input_residue)
-        self.residue_indices.remove(residue_index) # This index MUST be in the list
-        self.residues.pop(residue_index)
-        for atom_index in residue.atom_indices:
-            self.atom_indices.remove(atom_index) # This index MUST be in the list
-            self.atoms.pop(atom_index)
-            # Update atoms themselves
-            atom = self.structure.atoms[atom_index]
-            atom.chain = None
-            atom.chain_index = None
-        # Update the residue itself
-        residue.chain = None
+    def remove_residue (self, residue : 'Residue'):
+        self.residue_indices.remove(residue.index) # This index MUST be in the list
+        # Update the residue internal chain index
         residue.chain_index = None
+
+    # Atom indices for all atoms in the chain (read only)
+    # In order to change atom indices they must be changed in their corresponding residues
+    def get_atom_indices (self) -> List[int]:
+        return sum([ residue.atom_indices for residue in self.residues ], [])
+    atom_indices = property(get_atom_indices, None, None, "Atom indices for all atoms in the chain (read only)")
+
+    # Atoms in the chain (read only)
+    # In order to change atoms they must be changed in their corresponding residues
+    def get_atoms (self) -> List[int]:
+        return sum([ residue.atoms for residue in self.residues ], [])
+    atoms = property(get_atoms, None, None, "Atoms in the chain (read only)")
 
 # A structure is a group of atoms organized in chains and residues
 class Structure:
@@ -171,43 +342,34 @@ class Structure:
 
     # Set a new atom in the structure
     def set_new_atom (self, atom : 'Atom'):
-        atom.structure = self
+        atom._structure = self
         new_atom_index = len(self.atoms)
         self.atoms.append(atom)
-        atom.index = new_atom_index
+        atom._index = new_atom_index
 
     # Set a new residue in the structure
     # WARNING: Atoms must be set already before setting residues
     def set_new_residue (self, residue : 'Residue'):
-        residue.structure = self
+        residue._structure = self
         new_residue_index = len(self.residues)
         self.residues.append(residue)
-        residue.index = new_residue_index
+        residue._index = new_residue_index
+        # In case the residue has atom indices, set relational indices on each atom
         for atom_index in residue.atom_indices:
             atom = self.atoms[atom_index]
-            residue.atoms.append(atom)
-            atom.residue_index = new_residue_index
-            atom.residue = residue
+            atom._residue_index = new_residue_index
 
     # Set a new chain in the structure
     # WARNING: Residues and atoms must be set already before setting chains
     def set_new_chain (self, chain : 'Chain'):
-        chain.structure = self
+        chain._structure = self
         new_chain_index = len(self.chains)
         self.chains.append(chain)
-        chain.index = new_chain_index
-        # Set chain residues and update those residues about the chain they belong to
+        chain._index = new_chain_index
+        # In case the chain has residue indices, set relational indices on each residue
         for residue_index in chain.residue_indices:
             residue = self.residues[residue_index]
-            chain.residues.append(residue)
-            residue.chain_index = new_chain_index
-            residue.chain = chain
-            # Set chain atoms and update those atoms about the chain they belong to
-            for atom_index in residue.atom_indices:
-                atom = self.atoms[atom_index]
-                chain.atoms.append(atom)
-                atom.chain_index = new_chain_index
-                atom.chain = chain
+            residue._chain_index = new_chain_index
 
     # Set the structure from a ProDy topology
     @classmethod
@@ -230,14 +392,16 @@ class Structure:
             name = prody_residue.getResname()
             number = int(prody_residue.getResnum())
             icode = prody_residue.getIcode()
+            parsed_residue = Residue(name=name, number=number, icode=icode)
             atom_indices = [ int(index) for index in prody_residue.getIndices() ]
-            parsed_residue = Residue(name=name, number=number, icode=icode, atom_indices=atom_indices)
+            parsed_residue.atom_indices = atom_indices
             parsed_residues.append(parsed_residue)
         # Parse chains
         for prody_chain in prody_chains:
             name = prody_chain.getChid()
+            parsed_chain = Chain(name=name)
             residue_indices = [ int(residue.getResindex()) for residue in prody_chain.iterResidues() ]
-            parsed_chain = Chain(name=name, residue_indices=residue_indices)
+            parsed_chain.residue_indices = residue_indices
             parsed_chains.append(parsed_chain)
         return cls(atoms=parsed_atoms, residues=parsed_residues, chains=parsed_chains)
 
@@ -331,7 +495,6 @@ class Structure:
         new_atom_indices = {}
         # Collect also original indices to related atom residues and chains
         original_atom_residue_indices = []
-        original_atom_chain_indices = []
         for new_index, original_index in enumerate(selection.atom_indices):
             # Make a copy of the selected atom in order to not modify the original one
             original_atom = self.atoms[original_index]
@@ -344,7 +507,6 @@ class Structure:
             # Save old and new indices in order to reconfigure all indices later
             new_atom_indices[original_index] = new_index
             original_atom_residue_indices.append(original_atom.residue_index)
-            original_atom_chain_indices.append(original_atom.chain_index)
         # Find the selected residues
         selected_residue_indices = list(set(original_atom_residue_indices))
         # Repeat the original/new indices backup we did before
@@ -368,7 +530,6 @@ class Structure:
         selected_chain_indices = list(set(original_residue_chain_indices))
         # Repeat the original/new indices backup we did before
         new_chain_indices = {}
-        original_chain_atom_indices = []
         original_chain_residue_indices = []
         for new_index, original_index in enumerate(selected_chain_indices):
             # Make a copy of the selected chain in order to not modify the original one
@@ -379,30 +540,25 @@ class Structure:
             new_chains.append(new_chain)
             # Save old and new indices in order to reconfigure all indices later
             new_chain_indices[original_index] = new_index
-            original_chain_atom_indices.append(original_chain.atom_indices)
             original_chain_residue_indices.append(original_chain.residue_indices)
         # Finally, reset indices in all instances
         for a, atom in enumerate(new_atoms):
             atom.residue_index = new_residue_indices[ original_atom_residue_indices[a] ]
-            atom.chain_index = new_chain_indices[ original_atom_chain_indices[a] ]
         for r, residue in enumerate(new_residues):
-            residue.atom_indices = []
+            atom_indices = []
             for original_index in original_residue_atom_indices[r]:
                 new_index = new_atom_indices.get(original_index, None)
                 if new_index != None:
-                    residue.atom_indices.append(new_index)
+                    atom_indices.append(new_index)
+            residue.atom_indices = atom_indices
             residue.chain_index = new_chain_indices[ original_residue_chain_indices[r] ]
         for c, chain in enumerate(new_chains):
-            chain.atom_indices = []
-            for original_index in original_chain_atom_indices[c]:
-                new_index = new_atom_indices.get(original_index, None)
-                if new_index != None:
-                    chain.atom_indices.append(new_index)
-            chain.residue_indices = []
+            residue_indices = []
             for original_index in original_chain_residue_indices[c]:
                 new_index = new_residue_indices.get(original_index, None)
                 if new_index != None:
-                    chain.residue_indices.append(new_index)
+                    residue_indices.append(new_index)
+            chain.residue_indices = residue_indices
         return Structure(atoms=new_atoms, residues=new_residues, chains=new_chains)
 
     # Set chains on demand
@@ -417,7 +573,7 @@ class Structure:
         #     self.structure.set_new_chain(new_chain) # This function updates atoms and this residue already
 
         # DANI: Cuando el cambio esté claro para cada residuo:
-        #     residue.change_chain(new_chain)
+        #     residue.chain = new_chain
 
         pass
 
