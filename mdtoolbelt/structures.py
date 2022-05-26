@@ -11,6 +11,8 @@ from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices
 from .utils import residue_name_to_letter
 
+# DANI: git se ha rallado
+
 # An atom
 class Atom:
     def __init__ (self,
