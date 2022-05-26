@@ -9,6 +9,7 @@ import prody
 
 from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices
+from .utils import residue_name_to_letter
 
 # An atom
 class Atom:
@@ -321,6 +322,10 @@ class Chain:
     def get_atoms (self) -> List[int]:
         return sum([ residue.atoms for residue in self.residues ], [])
     atoms = property(get_atoms, None, None, "Atoms in the chain (read only)")
+
+    # Get the residues sequence in one-letter code
+    def get_sequence (self) -> str:
+        return ''.join([ residue_name_to_letter(residue.name) for residue in self.residues ])
 
 # A structure is a group of atoms organized in chains and residues
 class Structure:
@@ -635,6 +640,15 @@ class Structure:
     # Get a chain by its name
     def get_chain_by_name (self, name : str) -> 'Chain':
         return next((c for c in self.chains if c.name == name), None)
+
+    # Get a summary of the structure
+    def display_summary (self):
+        print('Atoms: ' + str(len(self.atoms)))
+        print('Residues: ' + str(len(self.residues)))
+        print('Chains: ' + str(len(self.chains)))
+        for chain in self.chains:
+            print('Chain ' + chain.name + ' (' + str(len(chain.residue_indices)) + ' residues)')
+            print(' -> ' + chain.get_sequence())
 
 ### Related functions ###
 
