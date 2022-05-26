@@ -2,7 +2,7 @@
 import os
 import math
 from bisect import bisect
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Generator
 Coords = Tuple[float, float, float]
 
 import prody
@@ -29,6 +29,9 @@ class Atom:
 
     def __repr__ (self):
         return '<Atom ' + self.name + '>'
+
+    def __eq__ (self, other):
+        return self._residue_index == other._residue_index and self.name == other.name
 
     # The parent structure (read only)
     # This value is set by the structure itself
@@ -114,7 +117,15 @@ class Residue:
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
 
     def __eq__ (self, other):
-        return self.name == other.name and self.number == other.number and self.icode == other.icode
+        return (
+            self._chain_index == other._chain_index and
+            self.name == other.name and
+            self.number == other.number and
+            self.icode == other.icode
+        )
+
+    def __hash__ (self):
+        return hash((self.name, self.number, self.icode))
 
     # The parent structure (read only)
     # This value is set by the structure itself
@@ -650,6 +661,172 @@ class Structure:
             print('Chain ' + chain.name + ' (' + str(len(chain.residue_indices)) + ' residues)')
             print(' -> ' + chain.get_sequence())
 
+    # There may be chains which are equal in the structure (i.e. same chain name)
+    # This means we have a duplicated/splitted chain
+    # Repeated chains are usual and they are usually supported but with some problems
+    # Also, repeated chains ususally come with repeated residues, which means more problems (see explanation below)
+    
+    # Check repeated chains
+    # Rename repeated chains if the fix_chains argument is True
+    # WARNING: The fix is possible only if there are less chains than the number of letters in the alphabet
+    # Although there is no limitation in this code for chain names, setting long chain names is not compatible with pdb format
+    # Return True if there were any repeats
+    def check_repeated_chains (self, fix_chains : bool = False, display_summary : bool = False) -> bool:
+        # Order chains according to their names
+        # Save also those chains which have a previous duplicate
+        name_chains = {}
+        repeated_chains = []
+        for chain in self.chains:
+            chain_name = chain.name
+            current_name_chains = name_chains.get(chain_name, None)
+            if not current_name_chains:
+                name_chains[chain_name] = [chain]
+            else:
+                name_chains[chain_name].append(chain)
+                repeated_chains.append(chain)
+        # Display the summary of repeated chains if requested
+        if display_summary:
+            if len(repeated_chains) == 0:
+                print('There are no repeated chains')
+            else:
+                print('WARNING: There are repeated chains:')
+                for chain_name, chains in name_chains.items():
+                    chains_count = len(chains)
+                    if chains_count > 1:
+                        print('- Chain ' + chain_name + ' has ' + str(chains_count) + ' repeats' )
+        # Rename repeated chains if requested
+        if len(repeated_chains) > 0 and fix_chains:
+            if len(self.chains) > 26:
+                raise ValueError('There are more chains than letters in the alphabet')
+            current_letters = list(name_chains.keys())
+            for repeated_chain in repeated_chains:
+                last_chain_letter = repeated_chain.name
+                while last_chain_letter in current_letters:
+                    last_chain_letter = get_next_letter(last_chain_letter)
+                repeated_chain.name = last_chain_letter
+                current_letters.append(last_chain_letter)
+        # Fix repeated chains if requested
+        return len(repeated_chains) > 0
+        
+
+    # There may be residues which are equal in the structure (i.e. same chain, name, number and icode)
+    # In case 2 residues in the structure are equal we must check distance between their atoms
+    # If atoms are far it means they are different residues with the same notation (duplicated residues)
+    # If atoms are close it means they are indeed the same residue (splitted residue)
+
+    # Splitted residues are found in some pdbs and they are supported by some tools
+    # These tools consider all atoms with the same 'record' as the same residue
+    # However, there are other tools which would consider the splitted residue as two different resdiues
+    # This causes inconsistency along different tools besides a long list of problems
+    # This situation has no easy fix since we can not change the order in atoms because trajectory data depends on it
+    # DANI: Habrá que hacer una función para reordenar átomos en la estructura a la vez que en una trayectoria
+
+    # Duplicated residues are usual and they are usually supported but with some problems
+    # For example, pytraj analysis outputs use to sort results by residues and each residue is tagged
+    # If there are duplicated residues with the same tag it may be not possible to know which result belongs to each residue
+    # Another example are NGL selections once in the web client
+    # If you select residue ':A and 1' and there are multiple residues 1 in chain A all of them will be displayed
+
+    # Check residues to search for duplicated and splitted residues
+    # Renumerate repeated residues if the fix_residues argument is True
+    # Return True if there were any repeats
+    def check_repeated_residues (self, fix_residues : bool = False, display_summary : bool = False) -> bool:
+        repeated_residues = {}
+        for residue in self.residues:
+            current_residue_repeats = repeated_residues.get(residue, None)
+            if not current_residue_repeats:
+                repeated_residues[residue] = [ residue ]
+            else:
+                current_residue_repeats.append(residue)
+        # Now for each repeated residue, find out which are splitted and which are duplicated
+        overall_splitted_residues = []
+        overall_duplicated_residues = []
+        for residues in repeated_residues.values():
+            if len(residues) == 1:
+                continue
+            # Iterate over repeated residues and check if residues al close
+            # If any pair of residues are close enought add them both to the splitted residues list
+            # At the end, all non-splitted residues will be considered duplicated residues
+            splitted_residues = set()
+            for residue, other_residues in otherwise(residues):
+                if residue in splitted_residues:
+                    continue
+                for other_residue in other_residues:
+                    if residues_are_close(residue, other_residue):
+                        splitted_residues.add(residue)
+                        splitted_residues.add(other_residue)
+            duplicated_residues = [ residue for residue in residues if residue not in splitted_residues ]
+            # Update the overall lists
+            overall_splitted_residues.append(list(splitted_residues))
+            overall_duplicated_residues += duplicated_residues
+        # Display the summary of repeated residues if requested
+        if display_summary:
+            if len(overall_splitted_residues) > 0:
+                print('WARNING: There are splitted residues (' + str(len(overall_splitted_residues)) + ')')
+                print('e.g. ' + str(overall_splitted_residues[0][0]))
+            else:
+                print('There are no splitted residues')
+            if len(overall_duplicated_residues) > 0:
+                print('WARNING: There are duplicated residues (' + str(len(overall_duplicated_residues)) + ')')
+                print('e.g. ' + str(overall_duplicated_residues[0]))
+            else:
+                print('There are no duplicated residues')
+        # Renumerate duplicated residues if requested
+        if len(overall_duplicated_residues) > 0 and fix_residues:
+            # Get the next available number in the residue chain
+            for duplicated_residue in overall_duplicated_residues:
+                maximum_chain_number = max([ residue.number for residue in duplicated_residue.chain.residues ])
+                duplicated_residue.number = maximum_chain_number + 1
+        return len(overall_splitted_residues) > 0 or len(overall_duplicated_residues) > 0
+
+    # Atoms with identical chain, residue and name are considered repeated atoms
+    # DANI: No recuerdo los problemas que daba tener átomos repetidos
+
+    # Check atoms to search for repeated atoms
+    # Rename repeated atoms if the fix_atoms argument is True
+    # Return True if there were any repeats
+    def check_repeated_atoms (self, fix_atoms : bool = False, display_summary : bool = False) -> bool:
+        # Set two trackers for display
+        repeated_atoms_count = 0
+        example = None
+        for residue in self.residues:
+            # Iterate over the residue atoms counting how many repeated names we have
+            current_names = []
+            for atom in residue.atoms:
+                # We check if the atom name already exists. If not, go to the next atom
+                name = atom.name
+                if name not in current_names:
+                    current_names.append(name)
+                    continue
+                # When atom is repeated
+                repeated_atoms_count += 1
+                # If the fix was not requested we stop here
+                if not fix_atoms:
+                    continue
+                # We set the name of the atom as the element letter + the count of this element
+                # If element is missing take the first character of the atom name
+                initial = atom.element
+                if not initial or initial == ' ':
+                    initial = name[0]
+                number = 1
+                new_name = initial + str(number)
+                while new_name in current_names:
+                    number += 1
+                    new_name = initial + str(number)
+                atom.name = new_name
+                current_names.append(new_name)
+                if not example:
+                    example = str(atom) + ' renamed as ' + new_name
+        # Display the summary of repeated atoms if requested
+        if display_summary:
+            if repeated_atoms_count > 0:
+                print('WARNING: There are repeated atoms (' + str(repeated_atoms_count) + ')')
+                print('e.g. ' + example)
+            else:
+                print('There are no repeated atoms')
+        return repeated_atoms_count > 0
+            
+
 ### Related functions ###
 
 # Calculate the distance between two atoms
@@ -660,8 +837,24 @@ def calculate_distance (atom_1 : Atom, atom_2 : Atom) -> float:
         squared_distances_sum += (atom_1.coords[i] - atom_2.coords[i])**2
     return math.sqrt(squared_distances_sum)
 
+# Set a function to find out if any atom of a residue is close enought to any atom of another residue
+# Distance limit is 3 Ångstroms (Å)
+def residues_are_close (residue_1 : 'Residue', residue_2 : 'Atom', distance_cutoff : float = 3) -> bool:
+    for atom_1 in residue_1.atoms:
+        for atom_2 in residue_2.atoms:
+            if calculate_distance(atom_1, atom_2) < distance_cutoff:
+                return True
+    return False
+
 
 ### Auxiliar functions ###
+
+# Set a function to get the next letter from an input letter in alphabetic order
+def get_next_letter (letter : str) -> str:
+    if letter == 'z' or letter == 'Z':
+        raise ValueError("Limit of chain letters has been reached")
+    next_letter = chr(ord(letter) + 1)
+    return next_letter
 
 # Given a string with 1 or 2 characters, return a new string with the first letter cap and the second letter not cap (if any)
 def first_cap_only (name : str) -> str:
@@ -703,3 +896,10 @@ def guess_name_element (name: str) -> str:
             return character
     raise SystemExit(
         "ERROR: Not recognized element in '" + name + "'")
+
+# Set a special iteration system
+# Return one value of the array and a new array with all other values for each value
+def otherwise (values : list) -> Generator[tuple, None, None]:
+    for v, value in enumerate(values):
+        others = values[0:v] + values[v+1:]
+        yield value, others
