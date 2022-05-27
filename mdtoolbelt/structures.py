@@ -452,9 +452,9 @@ class Structure:
                 icode = line[26:27]
                 if icode == ' ':
                     icode = ''
-                x_coord = float(line[31:39])
-                y_coord = float(line[39:47])
-                z_coord = float(line[47:55])
+                x_coord = float(line[30:38])
+                y_coord = float(line[38:46])
+                z_coord = float(line[46:54])
                 element = line[77:79].strip()
                 # Set the parsed atom, residue and chain
                 parsed_atom = Atom(name=atom_name, element=element, coords=(x_coord, y_coord, z_coord))
