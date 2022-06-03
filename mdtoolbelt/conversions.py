@@ -8,6 +8,7 @@ from .vmd_spells import vmd_to_pdb
 from .gmx_spells import get_tpr_structure
 from .gmx_spells import merge_and_convert_trajectories as gmx_merge_and_convert_trajectories
 from .mdt_spells import merge_and_convert_trajectories as mdt_merge_and_convert_trajectories
+from .mdt_spells import merge_and_convert_trajectories_unefficient as mdt_merge_and_convert_trajectories_unefficient
 from .vmd_spells import merge_and_convert_trajectories as vmd_merge_and_convert_trajectories
 
 # Set functions to performe structure conversions
@@ -22,7 +23,8 @@ structure_converting_functions = [ get_tpr_structure, vmd_to_pdb ]
 trajectory_converting_functions = [
     mdt_merge_and_convert_trajectories,
     gmx_merge_and_convert_trajectories,
-    vmd_merge_and_convert_trajectories
+    vmd_merge_and_convert_trajectories,
+    mdt_merge_and_convert_trajectories_unefficient
 ]
 
 # Handle conversions of different structure and trajectory formats

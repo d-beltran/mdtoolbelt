@@ -11,7 +11,7 @@ from .frame_counts import get_frames_count
 mdtraj_supported_structure_formats = {
     'pdb', 'pdb.gz' 'h5', 'lh5', 'prmtop', 'parm7', 'prm7', 'psf', 'mol2', 'hoomdxml', 'gro', 'arc', 'hdf5', 'gsd'
 }
-mdtraj_supported_trajectory_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos', 'mdcrd'}
+mdtraj_supported_trajectory_formats = {'dcd', 'xtc', 'trr', 'nc', 'h5', 'binpos', 'mdcrd', 'xyz'}
 
 # Use mdtraj 'mdconvert' command-line script (there is no python version for this tool apparently)
 # Multiple files may be selected with bash syntax
