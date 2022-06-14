@@ -757,29 +757,42 @@ class Structure:
                     if residues_are_close(residue, other_residue):
                         splitted_residues.add(residue)
                         splitted_residues.add(other_residue)
+            splitted_residues = list(splitted_residues)
             duplicated_residues = [ residue for residue in residues if residue not in splitted_residues ]
             # Update the overall lists
-            overall_splitted_residues.append(list(splitted_residues))
+            if len(splitted_residues) > 0:
+                overall_splitted_residues.append(splitted_residues)
             overall_duplicated_residues += duplicated_residues
-        # Display the summary of repeated residues if requested
-        if display_summary:
-            if len(overall_splitted_residues) > 0:
+        # Track if residues have to be changed or not
+        modified = False
+        # In case we have splitted residues
+        if len(overall_splitted_residues) > 0:
+            if display_summary:
                 print('WARNING: There are splitted residues (' + str(len(overall_splitted_residues)) + ')')
-                print('e.g. ' + str(overall_splitted_residues[0][0]))
-            else:
+                print('    e.g. ' + str(overall_splitted_residues[0][0]))
+            # Nothing to do here yet
+            if fix_residues:
+                print('    WARNING: Splitted residues can not be fixed yet')
+        else:
+            if display_summary:
                 print('There are no splitted residues')
-            if len(overall_duplicated_residues) > 0:
+         # In case we have duplicated residues
+        if len(overall_duplicated_residues) > 0:
+            if display_summary:
                 print('WARNING: There are duplicated residues (' + str(len(overall_duplicated_residues)) + ')')
-                print('e.g. ' + str(overall_duplicated_residues[0]))
-            else:
+                print('    e.g. ' + str(overall_duplicated_residues[0]))
+            # Renumerate duplicated residues if requested
+            if fix_residues:
+                print('    Duplicated residues will be renumerated')
+                # Get the next available number in the residue chain
+                for duplicated_residue in overall_duplicated_residues:
+                    maximum_chain_number = max([ residue.number for residue in duplicated_residue.chain.residues ])
+                    duplicated_residue.number = maximum_chain_number + 1
+                modified = True
+        else:
+            if display_summary:
                 print('There are no duplicated residues')
-        # Renumerate duplicated residues if requested
-        if len(overall_duplicated_residues) > 0 and fix_residues:
-            # Get the next available number in the residue chain
-            for duplicated_residue in overall_duplicated_residues:
-                maximum_chain_number = max([ residue.number for residue in duplicated_residue.chain.residues ])
-                duplicated_residue.number = maximum_chain_number + 1
-        return len(overall_splitted_residues) > 0 or len(overall_duplicated_residues) > 0
+        return modified
 
     # Atoms with identical chain, residue and name are considered repeated atoms
     # DANI: No recuerdo los problemas que daba tener átomos repetidos
