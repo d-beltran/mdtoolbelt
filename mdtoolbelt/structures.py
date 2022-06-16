@@ -8,7 +8,7 @@ Coords = Tuple[float, float, float]
 import prody
 
 from .selections import Selection
-from .vmd_spells import get_vmd_selection_atom_indices
+from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
 from .utils import residue_name_to_letter
 
 # DANI: git se ha rallado
@@ -96,6 +96,9 @@ class Atom:
         return self.structure.chains[self.chain_index]
     chain = property(get_chain, None, None, "The atom chain (read only)")
 
+    # Generate a selection for this atom
+    def get_selection (self) -> 'Selection':
+        return Selection([self.index])
 
 
 # A residue
@@ -235,6 +238,10 @@ class Residue:
             raise ValueError('Chain ' + str(new_chain) + ' is not set in the structure')
         self.set_chain_index(new_chain_index)
     chain = property(get_chain, set_chain, None, "The residue chain")
+
+    # Generate a selection for this residue
+    def get_selection (self) -> 'Selection':
+        return Selection(self.atom_indices)
     
 
 # A chain
@@ -339,6 +346,10 @@ class Chain:
     # Get the residues sequence in one-letter code
     def get_sequence (self) -> str:
         return ''.join([ residue_name_to_letter(residue.name) for residue in self.residues ])
+
+    # Generate a selection for this chain
+    def get_selection (self) -> 'Selection':
+        return Selection(self.atom_indices)
 
 # A structure is a group of atoms organized in chains and residues
 class Structure:
@@ -733,28 +744,41 @@ class Structure:
     # Renumerate repeated residues if the fix_residues argument is True
     # Return True if there were any repeats
     def check_repeated_residues (self, fix_residues : bool = False, display_summary : bool = False) -> bool:
-        repeated_residues = {}
+        # Group all residues in the structure according to their chain, number and icode
+        grouped_residues = {}
         for residue in self.residues:
-            current_residue_repeats = repeated_residues.get(residue, None)
+            current_residue_repeats = grouped_residues.get(residue, None)
             if not current_residue_repeats:
-                repeated_residues[residue] = [ residue ]
+                grouped_residues[residue] = [ residue ]
             else:
                 current_residue_repeats.append(residue)
+        # Grouped resdiues with more than 1 result are considered as repeated
+        repeated_residues = [ residues for residues in grouped_residues.values() if len(residues) > 1 ]
+        if len(repeated_residues) == 0:
+            if display_summary:
+                print('There are no repeated residues')
+            return False
+        # In case we have repeated residues...
+        if display_summary:
+            print('WARNING: There are repeated residues (' + str(len(repeated_residues)) + ')')
+            print('    e.g. ' + str(repeated_residues[0][0]))
         # Now for each repeated residue, find out which are splitted and which are duplicated
+        covalent_bonds = self.get_covalent_bonds()
         overall_splitted_residues = []
         overall_duplicated_residues = []
-        for residues in repeated_residues.values():
-            if len(residues) == 1:
-                continue
-            # Iterate over repeated residues and check if residues al close
-            # If any pair of residues are close enought add them both to the splitted residues list
+        for residues in repeated_residues:
+            # Iterate over repeated residues and check if residues are covalently bonded
+            # If any pair of residues are bonded add them both to the splitted residues list
             # At the end, all non-splitted residues will be considered duplicated residues
             splitted_residues = set()
             for residue, other_residues in otherwise(residues):
                 if residue in splitted_residues:
                     continue
+                # Get atom indices for all atoms connected to the current residue
+                residue_bonds = sum([ covalent_bonds[index] for index in residue.atom_indices ], [])
                 for other_residue in other_residues:
-                    if residues_are_close(residue, other_residue):
+                    # Get all atom indices for each other residue and collate with the current residue bonds
+                    if any( index in residue_bonds for index in other_residue.atom_indices ):
                         splitted_residues.add(residue)
                         splitted_residues.add(other_residue)
             splitted_residues = list(splitted_residues)
@@ -768,22 +792,20 @@ class Structure:
         # In case we have splitted residues
         if len(overall_splitted_residues) > 0:
             if display_summary:
-                print('WARNING: There are splitted residues (' + str(len(overall_splitted_residues)) + ')')
-                print('    e.g. ' + str(overall_splitted_residues[0][0]))
+                print('    There are splitted residues (' + str(len(overall_splitted_residues)) + ')')
             # Nothing to do here yet
             if fix_residues:
-                print('    WARNING: Splitted residues can not be fixed yet')
+                print('        WARNING: Splitted residues can not be fixed yet')
         else:
             if display_summary:
-                print('There are no splitted residues')
+                print('    There are no splitted residues')
          # In case we have duplicated residues
         if len(overall_duplicated_residues) > 0:
             if display_summary:
-                print('WARNING: There are duplicated residues (' + str(len(overall_duplicated_residues)) + ')')
-                print('    e.g. ' + str(overall_duplicated_residues[0]))
+                print('    There are duplicated residues (' + str(len(overall_duplicated_residues)) + ')')
             # Renumerate duplicated residues if requested
             if fix_residues:
-                print('    Duplicated residues will be renumerated')
+                print('        Duplicated residues will be renumerated')
                 # Get the next available number in the residue chain
                 for duplicated_residue in overall_duplicated_residues:
                     maximum_chain_number = max([ residue.number for residue in duplicated_residue.chain.residues ])
@@ -840,6 +862,16 @@ class Structure:
             else:
                 print('There are no repeated atoms')
         return repeated_atoms_count > 0
+
+    # Get all atomic covalent (strong) bonds
+    # Bonds are defined as a list of atom indices for each atom in the structure
+    # Rely on VMD logic to do so
+    def get_covalent_bonds (self) -> List[ List[int] ]:
+        # Generate a pdb strucutre to feed vmd
+        auxiliar_pdb_filename = '.structure.pdb'
+        self.generate_pdb_file(auxiliar_pdb_filename)
+        # Get covalent bonds between both residue atoms
+        return get_covalent_bonds(auxiliar_pdb_filename)
             
 
 ### Related functions ###
@@ -851,16 +883,6 @@ def calculate_distance (atom_1 : Atom, atom_2 : Atom) -> float:
     for i in coordinate_indices.values():
         squared_distances_sum += (atom_1.coords[i] - atom_2.coords[i])**2
     return math.sqrt(squared_distances_sum)
-
-# Set a function to find out if any atom of a residue is close enought to any atom of another residue
-# Distance limit is 3 Ångstroms (Å)
-def residues_are_close (residue_1 : 'Residue', residue_2 : 'Atom', distance_cutoff : float = 3) -> bool:
-    for atom_1 in residue_1.atoms:
-        for atom_2 in residue_2.atoms:
-            if calculate_distance(atom_1, atom_2) < distance_cutoff:
-                return True
-    return False
-
 
 ### Auxiliar functions ###
 
