@@ -45,7 +45,7 @@ def vmd_to_pdb (
         commands_filename,
         "-dispdev",
         "none"
-    ], stdout=PIPE).stdout.decode()
+    ], stdout=PIPE, stderr=PIPE).stdout.decode()
 
     os.remove(commands_filename)
 # Set function supported formats
@@ -128,7 +128,7 @@ def chainer (
         commands_filename,
         "-dispdev",
         "none"
-    ], stdout=PIPE).stdout.decode()
+    ], stdout=PIPE, stderr=PIPE).stdout.decode()
 
     # Remove the vmd commands file
     os.remove(commands_filename)
@@ -226,7 +226,7 @@ def get_vmd_selection_atom_indices (input_structure_filename : str, selection : 
         commands_filename,
         "-dispdev",
         "none"
-    ], stdout=PIPE).stdout.decode()
+    ], stdout=PIPE, stderr=PIPE).stdout.decode()
 
     # Read the VMD output
     with open(atom_indices_filename, 'r') as file:
@@ -265,7 +265,7 @@ def get_covalent_bonds (structure_filename : str) -> list:
         commands_filename,
         "-dispdev",
         "none"
-    ], stdout=PIPE).stdout.decode()
+    ], stdout=PIPE, stderr=PIPE).stdout.decode()
     
     # Read the VMD output
     with open(output_bonds_file, 'r') as file:
@@ -352,7 +352,7 @@ def get_covalent_bonds_between (structure_filename : str, selection_1 : 'Selecti
         commands_filename,
         "-dispdev",
         "none"
-    ], stdout=PIPE).stdout.decode()
+    ], stdout=PIPE, stderr=PIPE).stdout.decode()
     
     # Read the VMD output
     with open(output_index_1_file, 'r') as file:
