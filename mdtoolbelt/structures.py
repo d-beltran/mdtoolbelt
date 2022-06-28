@@ -6,6 +6,7 @@ from typing import Optional, Tuple, List, Generator
 Coords = Tuple[float, float, float]
 
 import prody
+import pytraj
 
 from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
@@ -540,10 +541,20 @@ class Structure:
         os.remove(pdb_filename)
         return prody_topology
 
+     # Get the structure equivalent pytraj topology
+    def get_pytraj_topology (self):
+        # Generate a pdb file from the current structure to feed pytraj
+        pdb_filename = '.structure.pdb'
+        self.generate_pdb_file(pdb_filename)
+        pytraj_topology = pytraj.load_topology(filename = pdb_filename)
+        os.remove(pdb_filename)
+        return pytraj_topology
+
     # Select atoms from the structure thus generating an atom indices list
     # Different tools may be used to make the selection:
     # - vmd (default)
     # - prody
+    # - pytraj
     def select (self, selection_string : str, syntax : str = 'vmd') -> Optional['Selection']:
         if syntax == 'vmd':
             # Generate a pdb for vmd to read it
@@ -563,6 +574,15 @@ class Structure:
                 print('WARNING: Empty selection')
                 return None
             return Selection.from_prody(prody_selection)
+        if syntax == 'pytraj':
+            pytraj_topology = self.get_pytraj_topology()
+            pytraj_selection = pytraj_topology[selection_string]
+            atom_indices = [ atom.index for atom in prody_selection.atoms ]
+            if len(atom_indices) == 0:
+                print('WARNING: Empty selection')
+                return None
+            return Selection(atom_indices)
+
         print('WARNING: Syntax ' + syntax + ' is not supported')
         return None
     
