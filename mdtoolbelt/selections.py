@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 # A selection is a list of atom indices from a structure
 class Selection:
@@ -16,6 +16,11 @@ class Selection:
     def from_prody (cls, prody_selection):
         indexes = [ atom.getIndex() for atom in prody_selection.iterAtoms() ]
         return cls(indexes)
+
+    def merge (self, other : Optional['Selection']) -> 'Selection':
+        if not other:
+            return self
+        return Selection(self.atom_indices + other.atom_indices)
 
     def to_prody (self) -> str:
         return 'index ' + ' '.join([ str(index) for index in self.atom_indices ])

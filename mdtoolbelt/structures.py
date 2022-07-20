@@ -195,14 +195,14 @@ class Residue:
         sorted_atom_index = bisect(self.atom_indices, new_atom_index)
         self.atom_indices.insert(sorted_atom_index, new_atom_index)
         # Update the atom internal index
-        atom._residue_index = self.index
+        new_atom._residue_index = self.index
 
     # Remove an atom from the residue
     def remove_atom (self, current_atom : 'Atom'):
         # Remove the current atom index from the atom indices list
         self.atom_indices.remove(current_atom.index) # This index MUST be in the list
         # Update the atom internal index
-        atom._residue_index = None
+        current_atom._residue_index = None
 
     # The residue chain index according to parent structure chains
     # If chain index is set then make changes in all the structure to make this change coherent
@@ -564,14 +564,12 @@ class Structure:
             atom_indices = get_vmd_selection_atom_indices(pdb_filename, selection_string)
             os.remove(pdb_filename)
             if len(atom_indices) == 0:
-                print('WARNING: Empty selection')
                 return None
             return Selection(atom_indices)
         if syntax == 'prody':
             prody_topology = self.get_prody_topology()
             prody_selection = prody_topology.select(selection_string)
             if not prody_selection:
-                print('WARNING: Empty selection')
                 return None
             return Selection.from_prody(prody_selection)
         if syntax == 'pytraj':
@@ -579,7 +577,6 @@ class Structure:
             pytraj_selection = pytraj_topology[selection_string]
             atom_indices = [ atom.index for atom in prody_selection.atoms ]
             if len(atom_indices) == 0:
-                print('WARNING: Empty selection')
                 return None
             return Selection(atom_indices)
 
