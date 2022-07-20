@@ -5,6 +5,7 @@ from .subsets import get_trajectory_subset
 #from .vmd_spells import chainer
 from .mdt_spells import split_merged_trajectories
 from .structures import Structure
+from .imaging import selective_no_jump
 
 # Define console call for mdtoolbelt
 parser = ArgumentParser(description="Call a tool from mdtoolbelt", formatter_class=RawTextHelpFormatter)
@@ -76,6 +77,21 @@ subset_parser.add_argument(
     "-step", "--step", type=int, default=1,
     help="Frame step")
 
+# The nojump command
+nojump_parser = subparsers.add_parser("nojump")
+nojump_parser.add_argument(
+    "-is", "--input_structure", required=True,
+    help="Path to input structure file")
+nojump_parser.add_argument(
+    "-it", "--input_trajectory", required=True,
+    help="Path to input trajectory file")
+nojump_parser.add_argument(
+    "-sel", "--atom_selection", required=True,
+    help="Selection string in VMD syntax for atoms to be chained")
+nojump_parser.add_argument(
+    "-ot", "--output_trajectory",
+    help="Path to output trajectory file")
+
 args = parser.parse_args()
 
 def call():
@@ -124,6 +140,18 @@ def call():
             start=args.start,
             end=args.end,
             step=args.step
+        )
+
+    # In case the chainer tool was called
+    if tool == 'nojump':
+        structure = Structure.from_pdb_file(args.input_structure)
+        selection = structure.select(args.atom_selection, syntax='vmd')
+        output_trajectory = args.output_trajectory if args.output_trajectory else args.input_trajectory
+        selective_no_jump(
+            input_structure_filename=args.input_structure,
+            input_trajectory_filename=args.input_trajectory,
+            output_trajectory_filename=output_trajectory,
+            selection=selection
         )
 
     # Tool will always match one of the previous defined options
