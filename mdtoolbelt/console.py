@@ -2,8 +2,9 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 
 from .conversions import convert
 from .subsets import get_trajectory_subset
-from .vmd_spells import chainer
+#from .vmd_spells import chainer
 from .mdt_spells import split_merged_trajectories
+from .structures import Structure
 
 # Define console call for mdtoolbelt
 parser = ArgumentParser(description="Call a tool from mdtoolbelt", formatter_class=RawTextHelpFormatter)
@@ -31,7 +32,7 @@ chainer_parser.add_argument(
     help="Path to input structure file (pdb)")
 chainer_parser.add_argument(
     "-sel", "--atom_selection",
-    help="Atoms to be chained")
+    help="Selection string in VMD syntax for atoms to be chained")
 chainer_parser.add_argument(
     "-chn", "--chain_letter",
     help="The chain letter to be set in selected atoms")
@@ -101,12 +102,11 @@ def call():
 
     # In case the chainer tool was called
     if tool == 'chainer':
-        chainer(
-            input_pdb_filename=args.input_structure,
-            atom_selection=args.atom_selection,
-            chain_letter=args.chain_letter,
-            output_pdb_filename=args.output_structure
-        )
+        structure = Structure.from_pdb_file(args.input_structure)
+        selection = structure.select(args.atom_selection, syntax='vmd') if args.atom_selection else structure.select_all()
+        structure.chainer(selection, args.chain_letter)
+        output_structure = args.output_structure if args.output_structure else args.input_structure
+        structure.generate_pdb_file(output_structure)
 
     if tool == 'split':
         split_merged_trajectories(

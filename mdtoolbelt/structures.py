@@ -8,11 +8,16 @@ Coords = Tuple[float, float, float]
 import prody
 import pytraj
 
+from .formats import get_format
 from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
 from .utils import residue_name_to_letter
 
 # DANI: git se ha rallado
+
+# Set all available chains according to pdb standards
+available_chain_names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'J',
+    'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
 # An atom
 class Atom:
@@ -131,7 +136,9 @@ class Residue:
         )
 
     def __hash__ (self):
-        return hash((self.name, self.number, self.icode))
+        # WARNING: This is susceptible to duplicated residues
+        # return hash((self.name, self.number, self.icode))
+        return hash(tuple(self._atom_indices))
 
     # The parent structure (read only)
     # This value is set by the structure itself
@@ -324,13 +331,13 @@ class Chain:
         sorted_residue_index = bisect(self.residue_indices, residue.index)
         self.residue_indices.insert(sorted_residue_index, residue.index)
         # Update the residue internal chain index
-        residue.chain_index = self.index
+        residue._chain_index = self.index
 
     # Remove a residue from the chain
     def remove_residue (self, residue : 'Residue'):
         self.residue_indices.remove(residue.index) # This index MUST be in the list
         # Update the residue internal chain index
-        residue.chain_index = None
+        residue._chain_index = None
 
     # Atom indices for all atoms in the chain (read only)
     # In order to change atom indices they must be changed in their corresponding residues
@@ -443,6 +450,8 @@ class Structure:
     def from_pdb_file(cls, pdb_filename : str):
         if not os.path.exists(pdb_filename):
             raise SystemExit('File "' + pdb_filename + '" not found')
+        if not get_format(pdb_filename) == 'pdb':
+            raise SystemExit('"' + pdb_filename + '" is not a name for a pdb file')
         # Read the pdb file line by line and set the parsed atoms, residues and chains
         parsed_atoms = []
         parsed_residues = []
@@ -516,8 +525,8 @@ class Structure:
             file.write('REMARK mdtoolbelt dummy pdb file\n')
             for a, atom in enumerate(self.atoms):
                 residue = atom.residue
-                index = str(a+1).rjust(5)
-                name =  ' ' + atom.name.ljust(3) if len(atom.name) < 4 else atom.name
+                index = str((a+1) % 100000).rjust(5)
+                name = ' ' + atom.name.ljust(3) if len(atom.name) < 4 else atom.name
                 residue_name = residue.name.ljust(4)
                 chain = atom.chain.name.rjust(1)
                 residue_number = str(residue.number).rjust(4)
@@ -582,6 +591,11 @@ class Structure:
 
         print('WARNING: Syntax ' + syntax + ' is not supported')
         return None
+
+    # Get a selection with all atoms
+    def select_all(self) -> 'Selection':
+        atom_count = len(self.atoms)
+        return Selection(list(range(atom_count)))
     
     # Create a new structure from the current using a selection to filter atoms
     def filter (self, selection : 'Selection') -> 'Structure':
@@ -666,17 +680,76 @@ class Structure:
     # If no selection is passed then the whole structure will be affected
     # If no chain is passed then a "chain by fragment" logic will be applied
     def chainer (self, selection : Optional['Selection'] = None, letter : Optional[str] = None):
+        # If there is no selection we consider all atoms
+        if not selection:
+            selection = self.select_all()
+        # If a letter is specified then the logic is way simpler
+        if letter:
+            self.set_selection_chain_name(selection, letter)
+            return
+        # If a letter is not specified we run the "fragments" logic
+        fragments = self.find_fragments(selection)
+        for fragment in fragments:
+            chain_name = self.get_next_available_chain_name()
+            if not chain_name:
+                raise SystemExit('ERROR: There are more chains than letters in the alphabet')
+            fragment_selection = Selection(fragment)
+            self.set_selection_chain_name(fragment_selection, chain_name)
 
-        # DANI: Aquí falta encontrar los strong bonds, para lo cual hay que extraer la lógica del workflow
+    # Find fragments* in a selection of atoms
+    # * A fragment is a group of colvalently bond atoms
+    # A list of fragments is returned, where every fragment is a list of atom indices
+    # All atoms are searched if no selection is provided
+    def find_fragments (self, selection : Optional['Selection'] = None) -> List[ List[int] ]:
+        # If there is no selection we consider all atoms
+        if not selection:
+            selection = self.select_all()
+        # Find covalent bonds between atoms
+        covalent_bonds = self.get_covalent_bonds(selection)
+        atom_indexed_covalent_bonds = { atom_index: covalent_bonds[i] for i, atom_index in enumerate(selection.atom_indices) }
+        # Group the connected atoms in "fragments"
+        fragments = []
+        while len(atom_indexed_covalent_bonds.keys()) > 0:
+            start_atom_index, bonds = list(atom_indexed_covalent_bonds.items())[0]
+            del atom_indexed_covalent_bonds[start_atom_index]
+            fragment_atom_indices = [ start_atom_index ]
+            while len(bonds) > 0:
+                next_atom_index = bonds[0]
+                next_bonds = atom_indexed_covalent_bonds.get(next_atom_index, None)
+                # If this atom is out of the selection then skip it
+                if not(next_bonds):
+                    bonds.remove(next_atom_index)
+                    continue
+                next_new_bonds = [ bond for bond in next_bonds if bond not in fragment_atom_indices + bonds ]
+                bonds += next_new_bonds
+                fragment_atom_indices.append(next_atom_index)
+                bonds.remove(next_atom_index)
+                del atom_indexed_covalent_bonds[next_atom_index]
+            fragments.append(fragment_atom_indices)
+        return fragments
 
-        # DANI: Si la cadena no existe habrá que crearla
-        #     new_chain = Chain(name=letter)
-        #     self.structure.set_new_chain(new_chain) # This function updates atoms and this residue already
+    # Given an atom selection, set the chain for all these atoms
+    # Note that the chain is changed in every whole residue, no matter if only one atom was selected
+    def set_selection_chain_name (self, selection : 'Selection', letter : str):
+        # Find if the letter belongs to an already existing chain
+        chain = self.get_chain_by_name(letter)
+        # If the chain does not exist yet then create it
+        if not chain:
+            chain = Chain(name=letter)
+            self.set_new_chain(chain)
+        # Convert the selection to residues
+        residues = list(set([ self.atoms[i].residue for i in selection.atom_indices ]))
+        # Set the chain index of every residue to the new chain
+        chain_index = chain.index
+        for residue in residues:
+            residue.set_chain_index(chain_index)
 
-        # DANI: Cuando el cambio esté claro para cada residuo:
-        #     residue.chain = new_chain
-
-        pass
+    # Get the next available chain name
+    # Find alphabetically the first letter which is not yet used as a chain name
+    # If all letters in the alphabet are used already then return None
+    def get_next_available_chain_name (self) -> Optional[str]:
+        current_chain_names = [ chain.name for chain in self.chains ]
+        return next((name for name in available_chain_names if name not in current_chain_names), None)
 
     # Get a chain by its name
     def get_chain_by_name (self, name : str) -> 'Chain':
@@ -883,12 +956,12 @@ class Structure:
     # Get all atomic covalent (strong) bonds
     # Bonds are defined as a list of atom indices for each atom in the structure
     # Rely on VMD logic to do so
-    def get_covalent_bonds (self) -> List[ List[int] ]:
+    def get_covalent_bonds (self, selection : Optional['Selection'] = None) -> List[ List[int] ]:
         # Generate a pdb strucutre to feed vmd
         auxiliar_pdb_filename = '.structure.pdb'
         self.generate_pdb_file(auxiliar_pdb_filename)
         # Get covalent bonds between both residue atoms
-        return get_covalent_bonds(auxiliar_pdb_filename)
+        return get_covalent_bonds(auxiliar_pdb_filename, selection)
             
 
 ### Related functions ###

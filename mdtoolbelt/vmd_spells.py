@@ -70,6 +70,7 @@ vmd_to_pdb.format_sets = [
 # 4 - Output pdb filename (Input filename by default)
 # WARNING: When no selection is passed, if only a part of a "fragment" is missing the chain then the whole fragment will be affected
 # WARNING: VMD only handles fragments if there are less fragments than letters in the alphabet
+# DEPRECATED: Use the structures chainer instead
 def chainer (
     input_pdb_filename : str,
     atom_selection : Optional[str] = None,
@@ -243,15 +244,21 @@ def get_vmd_selection_atom_indices (input_structure_filename : str, selection : 
     return atom_indices
 
 # Set a function to retrieve all covalent (strong) bonds in a structure
-def get_covalent_bonds (structure_filename : str) -> list:
+# You may provide an atom selection as well
+def get_covalent_bonds (structure_filename : str, selection : Optional['Selection'] = None) -> List[ List[int] ]:
+
+    # Parse the selection to vmd
+    vmd_selection = 'all'
+    if selection:
+        vmd_selection = selection.to_vmd()
 
     # Prepare a script for the VMD to automate the commands. This is Tcl lenguage
     output_bonds_file = '.bonds.txt'
     with open(commands_filename, "w") as file:
-        # Select all atoms
-        file.write('set all [atomselect top "all"]\n')
-        # Save all covalent bonds
-        file.write('set bonds [$all getbonds]\n')
+        # Select atoms
+        file.write('set atoms [atomselect top "' + vmd_selection + '"]\n')
+        # Save covalent bonds
+        file.write('set bonds [$atoms getbonds]\n')
         # Write those bonds to a file
         file.write('set bondsfile [open ' + output_bonds_file + ' w]\n')
         file.write('puts $bondsfile $bonds\n')
@@ -316,7 +323,11 @@ def get_covalent_bonds (structure_filename : str) -> list:
     return bonds_per_atom
 
 # Set a function to retrieve covalent (strong) bonds between 2 atom selections
-def get_covalent_bonds_between (structure_filename : str, selection_1 : 'Selection', selection_2 : 'Selection') -> list:
+def get_covalent_bonds_between (
+    structure_filename : str,
+    selection_1 : 'Selection',
+    selection_2 : 'Selection'
+) -> List[ List[int] ]:
 
     # Prepare a script for the VMD to automate the commands. This is Tcl lenguage
     output_index_1_file = '.index1.txt'
