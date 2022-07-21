@@ -12,7 +12,9 @@ parser = ArgumentParser(description="Call a tool from mdtoolbelt", formatter_cla
 subparsers = parser.add_subparsers(help='Name of the tool to be used', dest="tool")
 
 # The convert command
-convert_parser = subparsers.add_parser("convert")
+convert_parser = subparsers.add_parser("convert",
+    help="Convert a structure and/or several trajectories to other formats\n" +
+        "If several input trajectories are passed they will be merged previously.")
 convert_parser.add_argument(
     "-is", "--input_structure",
     help="Path to input structure file")
@@ -27,7 +29,10 @@ convert_parser.add_argument(
     help="Path to output trajectory file")
 
 # The chainer command
-chainer_parser = subparsers.add_parser("chainer")
+chainer_parser = subparsers.add_parser("chainer",
+    help="Set chains on demand in a pdb file.\n" +
+        "An atom selection may be provided. Otherwise all the structure is affected.\n" +
+        "A chain letter may be passed. Otheriwse a 'chain by fragment' logic is triggered.")
 chainer_parser.add_argument(
     "-is", "--input_structure", required=True,
     help="Path to input structure file (pdb)")
@@ -42,7 +47,9 @@ chainer_parser.add_argument(
     help="Path to output structure file (pdb)")
 
 # The split command
-split_parser = subparsers.add_parser("split")
+split_parser = subparsers.add_parser("split",
+    help="Split a trajectory which is the merge of several replicas into the individual replicas.\n" +
+        "Splits are guessed by the RMSD profile of the trajectory. A cutoff may be provided.")
 split_parser.add_argument(
     "-is", "--input_structure", required=True,
     help="Path to input structure file")
@@ -57,7 +64,8 @@ split_parser.add_argument(
     help="Prefix for the path to output trajectory files")
 
 # The subset command
-subset_parser = subparsers.add_parser("subset")
+subset_parser = subparsers.add_parser("subset",
+    help="Get a subset of frames from the current trajectory.")
 subset_parser.add_argument(
     "-is", "--input_structure", required=True,
     help="Path to input structure file")
@@ -78,7 +86,10 @@ subset_parser.add_argument(
     help="Frame step")
 
 # The nojump command
-nojump_parser = subparsers.add_parser("nojump")
+nojump_parser = subparsers.add_parser("nojump",
+    help="Image a specific atom selection by applying the gromacs 'trjconv -pbc nojump' logic.\n" +
+        "WARNING: This may result in periodic boundary artifacts which may not be 'legal'.\n" +
+        "WARNING: This logic will not work more than once in a same trajectory.")
 nojump_parser.add_argument(
     "-is", "--input_structure", required=True,
     help="Path to input structure file")
