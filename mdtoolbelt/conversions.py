@@ -5,7 +5,7 @@ from inspect import getfullargspec
 
 from .formats import get_format, get_format_set_suitable_function, get_format_set_suitable_combination
 from .vmd_spells import vmd_to_pdb
-from .gmx_spells import get_tpr_structure
+from .gmx_spells import get_structure, get_structure_alone
 from .gmx_spells import merge_and_convert_trajectories as gmx_merge_and_convert_trajectories
 from .mdt_spells import merge_and_convert_trajectories as mdt_merge_and_convert_trajectories
 from .mdt_spells import merge_and_convert_trajectories_unefficient as mdt_merge_and_convert_trajectories_unefficient
@@ -15,7 +15,7 @@ from .vmd_spells import merge_and_convert_trajectories as vmd_merge_and_convert_
 # These functions must have 'input_structure_filename' and 'output_structure_filename' keywords
 # These functions must have the 'format_sets' property
 # These functions may have the 'input_trajectory_filename' keyword
-structure_converting_functions = [ get_tpr_structure, vmd_to_pdb ]
+structure_converting_functions = [ get_structure, get_structure_alone, vmd_to_pdb ]
 
 # Set functions to performe trajectory conversions
 # These functions must have 'input_trajectory_filename' and 'output_trajectory_filename' keywords
@@ -35,7 +35,7 @@ trajectory_converting_functions = [
 def convert (
     input_structure_filename :  Optional[str] = '',
     output_structure_filename : Optional[str] = '',
-    input_trajectory_filenames :  Optional[List[str]] = '',
+    input_trajectory_filenames :  Optional[List[str]] = [],
     output_trajectory_filename : Optional[str] = ''
 ):
 
@@ -46,20 +46,26 @@ def convert (
         raise SystemExit('Missing input trajectory')
 
     # Get the first trajectory as a sample for those processes which do not require the whole trajectory
-    trajectory_sample = input_trajectory_filenames[0]
+    trajectory_sample = input_trajectory_filenames[0] if input_trajectory_filenames else None
 
     # Get file formats
     input_structure_format = get_format(input_structure_filename) if input_structure_filename else None
     output_structure_format = get_format(output_structure_filename) if output_structure_filename else None
-    input_trajectory_format = get_format(trajectory_sample) if input_trajectory_filenames else None
+    input_trajectory_format = get_format(trajectory_sample) if trajectory_sample else None
     output_trajectory_format = get_format(output_trajectory_filename) if output_trajectory_filename else None
 
     # In case multiple trajectories are passed check all of them to match in the format
-    trajectory_files_count = len(input_trajectory_filenames)
+    trajectory_files_count = len(input_trajectory_filenames) if input_trajectory_filenames else 0
     if trajectory_files_count > 1:
         for filename in input_trajectory_filenames:
             if get_format(filename) != input_trajectory_format:
                 raise SystemExit('All input trajectories must have the same format')
+
+    # Check the input files to exist
+    input_files = [ input_structure_filename ] + input_trajectory_filenames
+    for input_file in input_files:
+        if not os.path.exists(input_file):
+            raise SystemExit('Missing input file ' + input_file)
 
     # Convert the structure
     # Do it inside a function just to return as soon as we are done
@@ -93,7 +99,9 @@ def convert (
         converting_function, formats = suitable
         # Find the function keywords
         # This is important since some functions may need a trajectory input in addition
+        print(converting_function)
         converting_function_keywords = getfullargspec(converting_function)[0]
+        print(converting_function_keywords)
         required_trajectory = 'input_trajectory_filename' in converting_function_keywords
         if required_trajectory:
             if not input_trajectory_filenames:

@@ -84,14 +84,28 @@ get_first_frame.format_sets = [
     }
 ]
 
-# Get the structure of a tpr file using the first frame getter function
-def get_tpr_structure (input_structure_filename : str, input_trajectory_filename : str, output_structure_filename : str):
+# Get the structure using the first frame getter function
+def get_structure (input_structure_filename : str, input_trajectory_filename : str, output_structure_filename : str):
     get_first_frame(input_structure_filename, input_trajectory_filename, output_structure_filename)
-get_tpr_structure.format_sets = [
+get_structure.format_sets = [
     {
         'inputs': {
             'input_structure_filename': {'tpr', 'pdb', 'gro'},
             'input_trajectory_filename': {'xtc', 'trr'}
+        },
+        'outputs': {
+            'output_structure_filename': {'pdb', 'gro'}
+        }
+    }
+]
+
+# Convert the structure using the first frame getter function (no trajectory is required)
+def get_structure_alone (input_structure_filename : str, output_structure_filename : str):
+    get_first_frame(input_structure_filename, input_structure_filename, output_structure_filename)
+get_structure_alone.format_sets = [
+    {
+        'inputs': {
+            'input_structure_filename': {'pdb', 'gro'},
         },
         'outputs': {
             'output_structure_filename': {'pdb', 'gro'}

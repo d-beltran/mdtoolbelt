@@ -119,6 +119,8 @@ def call():
         if args.input_structure == None and args.input_trajectories == None:
             convert_parser.print_help()
             return
+        if args.input_trajectories == None:
+            args.input_trajectories = []
         # Run the convert command
         convert(
             input_structure_filename=args.input_structure,
