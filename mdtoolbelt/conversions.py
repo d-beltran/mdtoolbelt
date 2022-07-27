@@ -99,9 +99,7 @@ def convert (
         converting_function, formats = suitable
         # Find the function keywords
         # This is important since some functions may need a trajectory input in addition
-        print(converting_function)
         converting_function_keywords = getfullargspec(converting_function)[0]
-        print(converting_function_keywords)
         required_trajectory = 'input_trajectory_filename' in converting_function_keywords
         if required_trajectory:
             if not input_trajectory_filenames:
