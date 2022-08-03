@@ -71,7 +71,7 @@ def get_format_set_suitable_function (
 def get_common_argument_formats (required_arguments : dict, available_arguments : dict):
     # If there are not required arguments we return an empty dictionary
     if not required_arguments:
-        return {}
+        return {'not_required'}
     # If there are not available arguments we return None
     if not available_arguments:
         return None
