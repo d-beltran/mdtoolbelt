@@ -16,7 +16,7 @@ from .utils import residue_name_to_letter
 # DANI: git se ha rallado
 
 # Set all available chains according to pdb standards
-available_chain_names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'J',
+available_caps = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
     'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
 # An atom
@@ -128,17 +128,27 @@ class Residue:
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
 
     def __eq__ (self, other):
+        if type(self) != type(other):
+            return False
         return (
             self._chain_index == other._chain_index and
-            self.name == other.name and
+            #self.name == other.name and
             self.number == other.number and
             self.icode == other.icode
         )
 
     def __hash__ (self):
         # WARNING: This is susceptible to duplicated residues
-        # return hash((self.name, self.number, self.icode))
-        return hash(tuple(self._atom_indices))
+        return hash((self._chain_index, self.number, self.icode))
+        # WARNING: This is not susceptible to duplicated residues
+        #return hash(tuple(self._atom_indices))
+
+    def same_inputs_as (self, other) -> bool:
+        return (
+            self.name == other.name and
+            self.number == other.number and
+            self.icode == other.icode
+        )
 
     # The parent structure (read only)
     # This value is set by the structure itself
@@ -486,7 +496,7 @@ class Structure:
                 atom_index += 1
                 # Check if we are in the same chain/residue than before
                 same_chain = parsed_chains and parsed_chains[-1] == parsed_chain
-                same_residue = same_chain and parsed_residues and parsed_residues[-1] == parsed_residue
+                same_residue = same_chain and parsed_residues and parsed_residue.same_inputs_as(parsed_residues[-1])
                 # Update the residue atom indices
                 # If the residue equals the last parsed residue then use the previous instead
                 if same_residue:
@@ -522,7 +532,7 @@ class Structure:
     # Generate a pdb file with current structure
     def generate_pdb_file(self, pdb_filename : str):
         with open(pdb_filename, "w") as file:
-            file.write('REMARK mdtoolbelt dummy pdb file\n')
+            file.write('REMARK mdtoolbelt generated pdb file\n')
             for a, atom in enumerate(self.atoms):
                 residue = atom.residue
                 index = str((a+1) % 100000).rjust(5)
@@ -749,7 +759,7 @@ class Structure:
     # If all letters in the alphabet are used already then return None
     def get_next_available_chain_name (self) -> Optional[str]:
         current_chain_names = [ chain.name for chain in self.chains ]
-        return next((name for name in available_chain_names if name not in current_chain_names), None)
+        return next((name for name in available_caps if name not in current_chain_names), None)
 
     # Get a chain by its name
     def get_chain_by_name (self, name : str) -> 'Chain':
@@ -800,6 +810,8 @@ class Structure:
         # Rename repeated chains if requested
         if len(repeated_chains) > 0 and fix_chains:
             if len(self.chains) > 26:
+                # for chain in self.chains:
+                #     print(str(chain) + ': ' + str(chain.atom_indices[0]) + ' to ' + str(chain.atom_indices[-1]))
                 raise ValueError('There are more chains than letters in the alphabet')
             current_letters = list(name_chains.keys())
             for repeated_chain in repeated_chains:
@@ -834,20 +846,51 @@ class Structure:
     # Renumerate repeated residues if the fix_residues argument is True
     # Return True if there were any repeats
     def check_repeated_residues (self, fix_residues : bool = False, display_summary : bool = False) -> bool:
+        # Track if residues have to be changed or not
+        modified = False
         # Group all residues in the structure according to their chain, number and icode
         grouped_residues = {}
+        # Check repeated residues which are one after the other
+        # Note that these residues MUST have a different name
+        # Otherwise they would have not been considered different residues
+        # For these rare cases we use icodes to solve the problem
+        non_icoded_residues = []
+        last_residue = None
         for residue in self.residues:
+            # Check residue to be equal than the previous residue
+            if residue == last_residue:
+                non_icoded_residues.append(residue)
+                last_residue = residue
+                continue
+            last_residue = residue
+            # Add residue to the groups of repeated residues
             current_residue_repeats = grouped_residues.get(residue, None)
             if not current_residue_repeats:
                 grouped_residues[residue] = [ residue ]
             else:
                 current_residue_repeats.append(residue)
+        # In case we have non icoded residues
+        if len(non_icoded_residues) > 0:
+            if display_summary:
+                print('There are non-icoded residues (' + str(len(non_icoded_residues)) + ')')
+            # Set new icodes for non icoded residues
+            if fix_residues:
+                print('    Non icoded residues will recieve an icode')
+                for residue in non_icoded_residues:
+                    repeated_residues_group = grouped_residues[residue]
+                    current_icodes = [ residue.icode for residue in repeated_residues_group if residue.icode ]
+                    next_icode = next((cap for cap in available_caps if cap not in current_icodes), None)
+                    if not next_icode:
+                        raise ValueError('There are no more icodes available')
+                    # print('Setting icode ' + next_icode + ' to residue ' + str(residue))
+                    residue.icode = next_icode
+                modified = True
         # Grouped resdiues with more than 1 result are considered as repeated
         repeated_residues = [ residues for residues in grouped_residues.values() if len(residues) > 1 ]
         if len(repeated_residues) == 0:
             if display_summary:
                 print('There are no repeated residues')
-            return False
+            return modified
         # In case we have repeated residues...
         if display_summary:
             print('WARNING: There are repeated residues (' + str(len(repeated_residues)) + ')')
@@ -877,8 +920,6 @@ class Structure:
             if len(splitted_residues) > 0:
                 overall_splitted_residues.append(splitted_residues)
             overall_duplicated_residues += duplicated_residues
-        # Track if residues have to be changed or not
-        modified = False
         # In case we have splitted residues
         if len(overall_splitted_residues) > 0:
             if display_summary:
