@@ -119,6 +119,13 @@ smootrans_parser.add_argument(
     "-ot", "--output_trajectory",
     help="Path to output trajectory file")
 
+# The sumup command
+sumup_parser = subparsers.add_parser("sumup",
+    help="Get a summary of a pdb")
+sumup_parser.add_argument(
+    "-is", "--input_structure", required=True,
+    help="Path to input structure file")
+
 args = parser.parse_args()
 
 def call():
@@ -191,6 +198,11 @@ def call():
             output_trajectory_filename=output_trajectory,
             translation=tuple(args.translation)
         )
+
+    if tool == 'sumup':
+        structure = Structure.from_pdb_file(args.input_structure)
+        structure.display_summary()
+
 
     # Tool will always match one of the previous defined options
     # Otherwise argparse returns error itself
