@@ -5,7 +5,7 @@ from .subsets import get_trajectory_subset
 #from .vmd_spells import chainer
 from .mdt_spells import split_merged_trajectories
 from .structures import Structure
-from .imaging import selective_no_jump
+from .imaging import selective_no_jump, smooth_translation
 
 # Define console call for mdtoolbelt
 parser = ArgumentParser(description="Call a tool from mdtoolbelt", formatter_class=RawTextHelpFormatter)
@@ -103,6 +103,22 @@ nojump_parser.add_argument(
     "-ot", "--output_trajectory",
     help="Path to output trajectory file")
 
+# The smootrans command
+smootrans_parser = subparsers.add_parser("smootrans",
+    help="Image a trajectory by applying a smooth translation along the trajectory.")
+smootrans_parser.add_argument(
+    "-is", "--input_structure", required=True,
+    help="Path to input structure file")
+smootrans_parser.add_argument(
+    "-it", "--input_trajectory", required=True,
+    help="Path to input trajectory file")
+smootrans_parser.add_argument(
+    "-trans", "--translation", nargs=3, type=float, required=True,
+    help="Translation to be applided (x,y,z). e.g. -trans 1 2.3 -4")
+smootrans_parser.add_argument(
+    "-ot", "--output_trajectory",
+    help="Path to output trajectory file")
+
 args = parser.parse_args()
 
 def call():
@@ -165,6 +181,15 @@ def call():
             input_trajectory_filename=args.input_trajectory,
             output_trajectory_filename=output_trajectory,
             selection=selection
+        )
+
+    if tool == 'smootrans':
+        output_trajectory = args.output_trajectory if args.output_trajectory else args.input_trajectory
+        smooth_translation(
+            input_structure_filename=args.input_structure,
+            input_trajectory_filename=args.input_trajectory,
+            output_trajectory_filename=output_trajectory,
+            translation=tuple(args.translation)
         )
 
     # Tool will always match one of the previous defined options

@@ -1,6 +1,10 @@
 import os
 from subprocess import run, PIPE, Popen
 
+from typing import Tuple
+
+from .frame_counts import get_frames_count
+
 import mdtraj
 
 CURSOR_UP_ONE = '\x1b[1A'
@@ -106,6 +110,55 @@ def selective_no_jump (
     residual_files = [ ndx_filename, nojump_trajectory_filename, nojump_structure_filename, frame_filename ]
     for residual_file in residual_files:
         os.remove(residual_file)
+
+# Run a translation similar to gromacs trjconv '-trans' logic but spaced along the whole trajectory
+# WARNING: This functions makes not sense alone but it may be useful combined with any further '-pbc -center'
+def smooth_translation (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    output_trajectory_filename : str,
+    translation : Tuple[float, float, float]
+):
+    # If the output trajectory file already exists we must stop here
+    # The raw trjcat implementation will not join things to the end of it
+    if os.path.exists(output_trajectory_filename):
+        raise SystemExit('The output file already exists and overwrite is not supported for this command')
+    # Split the translation among the number of frames in the trajectory
+    frame_count = get_frames_count(input_structure_filename, input_trajectory_filename)
+    frame_offsets = [ t / frame_count for t in translation ]
+    # Now apply the translation on every frame
+    # Rely on mdtraj for this step
+    topology = mdtraj.load_topology(input_structure_filename)
+    trajectory = mdtraj.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
+    frame_filename = '.frame.xtc'
+    offsets = [0,0,0]
+    print('\n')
+    for f, frame in enumerate(trajectory):
+        print(ERASE_PREVIOUS_LINE)
+        print('Frame ' + str(f))
+        offsets[0] += frame_offsets[0]
+        offsets[1] += frame_offsets[1]
+        offsets[2] += frame_offsets[2]
+        xyz = frame.xyz[0]
+        for atom in xyz:
+            atom[0] += offsets[0]
+            atom[1] += offsets[1]
+            atom[2] += offsets[2]
+        new_frame = mdtraj.Trajectory([xyz],
+            topology=topology,
+            time=frame.time,
+            unitcell_lengths=frame.unitcell_lengths,
+            unitcell_angles=frame.unitcell_angles
+        )
+        new_frame.save(frame_filename)
+        merge_xtc_files(output_trajectory_filename, frame_filename)
+
+    # Remove the residual files
+    residual_files = [ frame_filename ]
+    for residual_file in residual_files:
+        os.remove(residual_file)
+
+# AUXILIAR -------------------------------------------------------------------------
 
 # Join xtc files
 def merge_xtc_files (current_file : str, new_file : str):
