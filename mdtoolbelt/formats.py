@@ -33,6 +33,13 @@ def get_format_set_suitable_function (
     available_functions : List[Callable],
     available_request_format_sets : List[dict],
 ) -> Generator[ Optional[ Tuple[ Callable, dict ]], None, None ]:
+    # -------------------------------------------------------------
+    # Use this to see what is going on
+    # print('REQUEST')
+    # print(available_request_format_sets)
+    # print('AVAILABLE FUNCTIONS')
+    # print([ func.format_sets for func in  available_functions ])
+    # -------------------------------------------------------------
     # Try with each request format set
     for request_format_set in available_request_format_sets:
         # Search functions to match formats for every required argument

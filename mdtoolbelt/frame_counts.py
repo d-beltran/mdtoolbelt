@@ -25,7 +25,7 @@ def get_frames_count (
         available_request_format_sets=[format_set],
     ), None)
     if not suitables:
-        raise SystemExit('There is no frame count function which supports the requested formats')
+        raise SystemExit('There is no frame count function which supports the requested formats: ' + str(input_structure_format) + ' and ' + input_trajectory_format)
     suitable_function, formats = suitables
     # Run the suitable function
     frame_count = suitable_function(input_structure_filename, input_trajectory_filename)

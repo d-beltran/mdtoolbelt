@@ -146,16 +146,16 @@ def call():
         )
 
     if tool == 'subset':
+        output_trajectory = args.output_trajectory if args.output_trajectory else args.input_trajectory
         get_trajectory_subset(
             input_structure_filename=args.input_structure,
             input_trajectory_filename=args.input_trajectory,
-            output_trajectory_filename=args.output_trajectory,
+            output_trajectory_filename=output_trajectory,
             start=args.start,
             end=args.end,
             step=args.step
         )
 
-    # In case the chainer tool was called
     if tool == 'nojump':
         structure = Structure.from_pdb_file(args.input_structure)
         selection = structure.select(args.atom_selection, syntax='vmd')
