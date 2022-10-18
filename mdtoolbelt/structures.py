@@ -106,6 +106,13 @@ class Atom:
     def get_selection (self) -> 'Selection':
         return Selection([self.index])
 
+    # Make a copy of the current atom
+    def copy (self) -> 'Atom':
+        atom_copy = Atom(self.name, self.element, self.coords)
+        atom_copy._structure = self._structure
+        atom_copy._index = self._index
+        atom_copy._residue_index = self._residue_index
+        return atom_copy
 
 # A residue
 class Residue:
@@ -260,7 +267,15 @@ class Residue:
     # Generate a selection for this residue
     def get_selection (self) -> 'Selection':
         return Selection(self.atom_indices)
-    
+
+    # Make a copy of the current residue
+    def copy (self) -> 'Residue':
+        residue_copy = Residue(self.name, self.number, self.icode)
+        residue_copy._structure = self._structure
+        residue_copy._index = self._index
+        residue_copy._atom_indices = self._atom_indices
+        residue_copy._chain_index = self._chain_index
+        return residue_copy
 
 # A chain
 class Chain:
@@ -368,6 +383,14 @@ class Chain:
     # Generate a selection for this chain
     def get_selection (self) -> 'Selection':
         return Selection(self.atom_indices)
+
+    # Make a copy of the current chain
+    def copy (self) -> 'Chain':
+        chain_copy = Chain(self.name)
+        chain_copy._structure = self._structure
+        chain_copy._index = self._index
+        chain_copy.residue_indices = self.residue_indices
+        return chain_copy
 
 # A structure is a group of atoms organized in chains and residues
 class Structure:
@@ -822,7 +845,6 @@ class Structure:
                 current_letters.append(last_chain_letter)
         # Fix repeated chains if requested
         return len(repeated_chains) > 0
-        
 
     # There may be residues which are equal in the structure (i.e. same chain, name, number and icode)
     # In case 2 residues in the structure are equal we must check distance between their atoms
@@ -1003,6 +1025,13 @@ class Structure:
         self.generate_pdb_file(auxiliar_pdb_filename)
         # Get covalent bonds between both residue atoms
         return get_covalent_bonds(auxiliar_pdb_filename, selection)
+
+    # Make a copy of the current structure
+    def copy (self) -> 'Structure':
+        atom_copies = [ atom.copy() for atom in self.atoms ]
+        residue_copies = [ residue.copy() for residue in self.residues ]
+        chain_copies = [ chain.copy() for chain in self.chains ]
+        return Structure(atom_copies, residue_copies, chain_copies)
             
 
 ### Related functions ###
