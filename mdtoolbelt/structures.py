@@ -106,6 +106,14 @@ class Atom:
     def get_selection (self) -> 'Selection':
         return Selection([self.index])
 
+    # Get indices of other atoms in the structure which are covalently bonded to this atom
+    def get_bonds (self) -> Optional[ List[int] ]:
+        if not self.structure:
+            raise ValueError('The atom has not a structure defined')
+        if self.index == None:
+            raise ValueError('The atom has not an index defined')
+        return self.structure.bonds[self.index]
+
     # Make a copy of the current atom
     def copy (self) -> 'Atom':
         atom_copy = Atom(self.name, self.element, self.coords)
@@ -409,9 +417,21 @@ class Structure:
             self.set_new_residue(residue)
         for chain in chains:
             self.set_new_chain(chain)
+        # Set other internal variables
+        self._bonds = None
 
     def __repr__ (self):
         return '<Structure (' + str(len(self.atoms)) + ' atoms)>'
+
+    # The bonds between atoms (read only)
+    def get_bonds (self):
+        # Return the stored value, if exists
+        if self._bonds:
+            return self._bonds
+        # If not, we must calculate the bonds using vmd
+        self._bonds = self.get_covalent_bonds()
+        return self._bonds
+    bonds = property(get_bonds, None, None, "The structure bonds (read only)")
 
     # Set a new atom in the structure
     def set_new_atom (self, atom : 'Atom'):
@@ -1024,7 +1044,10 @@ class Structure:
         auxiliar_pdb_filename = '.structure.pdb'
         self.generate_pdb_file(auxiliar_pdb_filename)
         # Get covalent bonds between both residue atoms
-        return get_covalent_bonds(auxiliar_pdb_filename, selection)
+        covalent_bonds = get_covalent_bonds(auxiliar_pdb_filename, selection)
+        # Remove the auxiliar pdb file
+        os.remove(auxiliar_pdb_filename)
+        return covalent_bonds
 
     # Make a copy of the current structure
     def copy (self) -> 'Structure':
