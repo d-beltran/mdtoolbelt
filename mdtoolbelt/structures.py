@@ -43,13 +43,13 @@ class Atom:
 
     # The parent structure (read only)
     # This value is set by the structure itself
-    def get_structure (self):
+    def get_structure (self) -> Optional['Structure']:
         return self._structure
     structure = property(get_structure, None, None, "The parent structure (read only)")
 
     # The residue index according to parent structure residues (read only)
     # This value is set by the structure itself
-    def get_index (self):
+    def get_index (self) -> Optional[int]:
         return self._index
     index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
 
@@ -73,10 +73,11 @@ class Atom:
 
     # The atom residue
     # If residue is set then make changes in all the structure to make this change coherent
-    def get_residue (self) -> 'Residue':
+    def get_residue (self) -> Optional['Residue']:
         # If there is not strucutre yet it means the atom is beeing set before the structure
         # In this case it is not possible to get related residues in the structure
-        if not self.structure:
+        # It also may happend that the residue is missing because the atom has been set rawly
+        if not self.structure or self.residue_index == None:
             return None
         # Get the residue in the structure according to the residue index
         return self.structure.residues[self.residue_index]
@@ -91,13 +92,21 @@ class Atom:
 
     # The atom chain index according to parent structure chains (read only)
     # In order to change the chain index it must be changed in the atom residue
-    def get_chain_index (self) -> int:
+    def get_chain_index (self) -> Optional[int]:
+        # The residue may be missing if the atom has been set rawly
+        if not self.residue:
+            return None
         return self.residue.chain_index
     chain_index = property(get_chain_index, None, None, "The atom chain index according to parent structure chains (read only)")
 
     # The atom chain (read only)
     # In order to change the chain it must be changed in the atom residue
-    def get_chain (self) -> 'Chain':
+    def get_chain (self) -> Optional['Chain']:
+        # If there is not strucutre yet it means the atom is beeing set before the structure
+        # In this case it is not possible to get related residues in the structure
+        # It also may happend that the chain is missing because the atom has been set rawly
+        if not self.structure or self.chain_index == None:
+            return None
         # Get the chain in the structure according to the chain index
         return self.structure.chains[self.chain_index]
     chain = property(get_chain, None, None, "The atom chain (read only)")
@@ -167,13 +176,13 @@ class Residue:
 
     # The parent structure (read only)
     # This value is set by the structure itself
-    def get_structure (self):
+    def get_structure (self) -> Optional['Structure']:
         return self._structure
     structure = property(get_structure, None, None, "The parent structure (read only)")
 
     # The residue index according to parent structure residues (read only)
     # This value is set by the structure itself
-    def get_index (self):
+    def get_index (self) -> Optional[int]:
         return self._index
     index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
 
@@ -295,7 +304,7 @@ class Chain:
         # These variables will be set further by the structure
         self._structure = None
         self._index = None
-        self.residue_indices = []
+        self._residue_indices = []
 
     def __repr__ (self):
         return '<Chain ' + self.name + '>'
@@ -305,13 +314,13 @@ class Chain:
 
     # The parent structure (read only)
     # This value is set by the structure itself
-    def get_structure (self):
+    def get_structure (self) -> Optional['Structure']:
         return self._structure
     structure = property(get_structure, None, None, "The parent structure (read only)")
 
     # The residue index according to parent structure residues (read only)
     # This value is set by the structure itself
-    def get_index (self):
+    def get_index (self) -> Optional[int]:
         return self._index
     index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
 
@@ -580,17 +589,18 @@ class Structure:
                 residue = atom.residue
                 index = str((a+1) % 100000).rjust(5)
                 name = ' ' + atom.name.ljust(3) if len(atom.name) < 4 else atom.name
-                residue_name = residue.name.ljust(4)
-                chain = atom.chain.name.rjust(1)
-                residue_number = str(residue.number).rjust(4)
-                icode = residue.icode.rjust(1)
+                residue_name = residue.name.ljust(4) if residue else 'XXX'.ljust(4)
+                chain = atom.chain
+                chain_name = atom.chain.name.rjust(1) if chain else 'X'
+                residue_number = str(residue.number).rjust(4) if residue else '0'.rjust(4)
+                icode = residue.icode.rjust(1) if residue else ' '
                 coords = atom.coords
                 x_coord, y_coord, z_coord = [ "{:.3f}".format(coord).rjust(8) for coord in coords ]
                 occupancy = '1.00' # Just a placeholder
                 temp_factor = '0.00' # Just a placeholder
                 element = atom.element
                 atom_line = ('ATOM  ' + index + ' ' + name + ' ' + residue_name
-                    + chain + residue_number + icode + '   ' + x_coord + y_coord + z_coord
+                    + chain_name + residue_number + icode + '   ' + x_coord + y_coord + z_coord
                     + '  ' + occupancy + '  ' + temp_factor + '           ' + element).ljust(80) + '\n'
                 file.write(atom_line)
 
@@ -1055,6 +1065,37 @@ class Structure:
         residue_copies = [ residue.copy() for residue in self.residues ]
         chain_copies = [ chain.copy() for chain in self.chains ]
         return Structure(atom_copies, residue_copies, chain_copies)
+
+    # Merge currnet structure with another structure
+    # DANI: No lo he testeado en profundidad
+    def merge (self, other : 'Structure') -> 'Structure':
+        # Copy self atoms, residues and chains
+        self_atom_copies = [ atom.copy() for atom in self.atoms ]
+        self_residue_copies = [ residue.copy() for residue in self.residues ]
+        self_chain_copies = [ chain.copy() for chain in self.chains ]
+        # Copy other atoms, residues and chains
+        other_atom_copies = [ atom.copy() for atom in other.atoms ]
+        other_residue_copies = [ residue.copy() for residue in other.residues ]
+        other_chain_copies = [ chain.copy() for chain in other.chains ]
+        # Adapt indices in other atoms, residues and chains
+        atom_index_offset = len(self_atom_copies)
+        residue_index_offset = len(self_residue_copies)
+        chain_index_offset = len(self_chain_copies)
+        for atom in other_atom_copies:
+            atom._index += atom_index_offset
+            atom._residue_index += residue_index_offset
+        for residue in other_residue_copies:
+            residue._index += residue_index_offset
+            residue._atom_indices = [ i + atom_index_offset for i in residue._atom_indices ]
+            residue._chain_index += chain_index_offset
+        for chain in other_chain_copies:
+            chain._index += chain_index_offset
+            chain._residue_indices = [ i + residue_index_offset for i in chain._residue_indices ]
+        # Merge self with other atoms, residues and chains and build the new structure
+        merged_atoms = self_atom_copies + other_atom_copies
+        merged_residues = self_residue_copies + other_residue_copies
+        merged_chains = self_chain_copies + other_chain_copies
+        return Structure(merged_atoms, merged_residues, merged_chains)
             
 
 ### Related functions ###
