@@ -205,13 +205,18 @@ merge_and_convert_trajectories.format_sets = [
 
 # Given an atom selection in vmd syntax, return the list of atom indices it corresponds to
 def get_vmd_selection_atom_indices (input_structure_filename : str, selection : str) -> List[int]:
+
+    # A vmd selection may contain "
+    # However strings in TCL are defined with ""
+    # For this reason me must escape those symbols anywhere in the input selection
+    escaped_selection = selection.replace('"','\\"')
     
     # Prepare a script for VMD to run. This is Tcl language
     # The output of the script will be written to a txt file
     atom_indices_filename = '.vmd_output.txt'
     with open(commands_filename, "w") as file:
         # Select the specified atoms
-        file.write('set selection [atomselect top "' + selection + '"]\n')
+        file.write('set selection [atomselect top "' + escaped_selection + '"]\n')
         # Save atom indices from the selection
         file.write('set indices [$selection list]\n')
         # Write atom indices to a file
