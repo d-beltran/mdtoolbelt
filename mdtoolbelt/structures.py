@@ -2,7 +2,7 @@
 import os
 import math
 from bisect import bisect
-from typing import Optional, Tuple, List, Generator
+from typing import Optional, Union, Tuple, List, Generator
 Coords = Tuple[float, float, float]
 
 import prody
@@ -257,9 +257,12 @@ class Residue:
             return
         # Relational indices are updated through a top-down hierarchy
         # Affected chains are the ones to update this residue internal chain index
+        # WARNING: It is critical to find both current and new chains before removing/adding residues
+        # WARNING: It may happend that we remove the last residue in the current chain and the current chain is purged
+        # WARNING: Thus the 'new_chain_index' would be obsolete since the structure.chains list would have changed
         current_chain = self.chain
-        current_chain.remove_residue(self)
         new_chain = self.structure.chains[new_chain_index]
+        current_chain.remove_residue(self)
         new_chain.add_residue(self)
     chain_index = property(get_chain_index, set_chain_index, None, "The residue chain index according to parent structure chains")
 
@@ -272,7 +275,20 @@ class Residue:
             return []
         # Get the chain in the structure according to the chain index
         return self.structure.chains[self.chain_index]
-    def set_chain (self, new_chain : 'Chain'):
+    def set_chain (self, new_chain : Union['Chain', str]):
+        # In case the chain is just a string we must find/create the corresponding chain
+        if type(new_chain) == str:
+            letter = new_chain
+            # Get the residue structure
+            structure = self.structure
+            if not structure:
+                raise ValueError('Cannot find the corresponding ' + new_chain + ' chain without the structure')
+            # Find if the letter belongs to an already existing chain
+            new_chain = structure.get_chain_by_name(letter)
+            # If the chain does not exist yet then create it
+            if not new_chain:
+                new_chain = Chain(name=letter)
+                structure.set_new_chain(new_chain)
         # Find the new chain index and set it as the residue chain index
         # Note that the chain must be set in the structure already
         new_chain_index = new_chain.index
@@ -322,7 +338,12 @@ class Chain:
     # This value is set by the structure itself
     def get_index (self) -> Optional[int]:
         return self._index
-    index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
+    # When the index is set all residues are updated with the nex chain index
+    def set_index (self, index : int):
+        for residue in self.residues:
+            residue._chain_index = index
+        self._index = index
+    index = property(get_index, set_index, None, "The residue index according to parent structure residues (read only)")
 
     # The residue indices according to parent structure residues for residues in this chain
     # If residue indices are set then make changes in all the structure to make this change coherent
@@ -341,6 +362,9 @@ class Chain:
         for index in new_residue_indices:
             residue = self.structure.residues[index]
             residue._chain_index = self.index
+        # In case the new residue indices list is empty this chain must be removed from its structure
+        if len(new_residue_indices) == 0:
+            self.structure.purge_chain(self)
         # Now new indices are coherent and thus we can save them
         self._residue_indices = new_residue_indices
     residue_indices = property(get_residue_indices, set_residue_indices, None, "The residue indices according to parent structure residues for residues in this residue")
@@ -376,8 +400,12 @@ class Chain:
         residue._chain_index = self.index
 
     # Remove a residue from the chain
+    # WARNING: Note that this function does not trigger the set_residue_indices
     def remove_residue (self, residue : 'Residue'):
         self.residue_indices.remove(residue.index) # This index MUST be in the list
+        # If we removed the last index then this chain must be removed from its structure
+        if len(self.residue_indices) == 0 and self.structure:
+            self.structure.purge_chain(self)
         # Update the residue internal chain index
         residue._chain_index = None
 
@@ -472,6 +500,25 @@ class Structure:
         for residue_index in chain.residue_indices:
             residue = self.residues[residue_index]
             residue._chain_index = new_chain_index
+
+    # Purge chain from the structure
+    # This can be done only when the chain has no residues left in the structure
+    # Renumerate all chain indices which have been offsetted as a result of the purge
+    def purge_chain (self, chain : 'Chain'):
+        # Check the chain can be purged
+        if chain not in self.chains:
+            raise ValueError('Chain ' + chain.name + ' is not in the structure already')
+        if len(chain.residue_indices) > 0:
+            raise ValueError('Chain ' + chain.name + ' is still having residues and thus it cannot be purged')
+        # Get the current index of the chain to be purged
+        purged_index = chain.index
+        # Chains and their residues below this index are not to be modified
+        # Chains and their residues over this index must be renumerated
+        for affected_chain in self.chains[purged_index+1:]:
+            # Chaging the index automatically changes all chain residues '_chain_index' values.
+            affected_chain.index -= 1
+        # Finally, remove the current chain from the list of chains in the structure
+        self.chains.remove(chain)
 
     # Set the structure from a ProDy topology
     @classmethod
@@ -758,6 +805,24 @@ class Structure:
                 raise SystemExit('ERROR: There are more chains than letters in the alphabet')
             fragment_selection = Selection(fragment)
             self.set_selection_chain_name(fragment_selection, chain_name)
+
+    # This is an alternative system to find protein chains (anything else is chained as 'X')
+    # This system does not depend on VMD
+    # It totally overrides previous chains since it is expected to be used only when chains are missing
+    def raw_protein_chainer (self):
+        current_chain = self.get_next_available_chain_name()
+        previous_alpha_carbon = None
+        for residue in self.residues:
+            alpha_carbon = next((atom for atom in residue.atoms if atom.name == 'CA'), None)
+            if not alpha_carbon:
+                residue.set_chain('X')
+                continue
+            # Connected aminoacids have their alpha carbons at a distance of around 3.8 Ångstroms
+            residues_are_connected = previous_alpha_carbon and calculate_distance(previous_alpha_carbon, alpha_carbon) < 4
+            if not residues_are_connected:
+                current_chain = self.get_next_available_chain_name()
+            residue.set_chain(current_chain)
+            previous_alpha_carbon = alpha_carbon
 
     # Find fragments* in a selection of atoms
     # * A fragment is a group of colvalently bond atoms
@@ -1101,10 +1166,9 @@ class Structure:
 ### Related functions ###
 
 # Calculate the distance between two atoms
-coordinate_indices = { 'x': 0, 'y': 1, 'z': 2 }
 def calculate_distance (atom_1 : Atom, atom_2 : Atom) -> float:
     squared_distances_sum = 0
-    for i in coordinate_indices.values():
+    for i in { 'x': 0, 'y': 1, 'z': 2 }.values():
         squared_distances_sum += (atom_1.coords[i] - atom_2.coords[i])**2
     return math.sqrt(squared_distances_sum)
 
