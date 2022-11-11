@@ -702,11 +702,34 @@ class Structure:
         print('WARNING: Syntax ' + syntax + ' is not supported')
         return None
 
+    # Set a function to make selections using atom indices
+    def select_atom_indices (self, atom_indices : List[int]) -> 'Selection':
+        # Check atom indices to be in the structure
+        atom_count = len(self.atoms)
+        for atom_index in atom_indices:
+            if atom_index >= atom_count:
+                raise SystemExit('Atom index ' + str(atom_index) + ' is out of range (' + str(atom_count) + ')')
+        return Selection(atom_indices)
+
+    # Set a function to make selections using residue indices
+    def select_residue_indices (self, residue_indices : List[int]) -> 'Selection':
+        atom_indices = sum([ self.residues[index].atom_indices for index in residue_indices ], [])
+        return Selection(atom_indices)
+
     # Get a selection with all atoms
-    def select_all(self) -> 'Selection':
+    def select_all (self) -> 'Selection':
         atom_count = len(self.atoms)
         return Selection(list(range(atom_count)))
+
+    # Invert a selection
+    def invert_selection (self, selection : 'Selection') -> 'Selection':
+        return Selection([ atom_index for atom_index in range(len(self.atoms)) if atom_index not in selection.atom_indices ])
     
+    # Given a selection, get a list of residue indices for residues implicated
+    # Note that if a single atom from the residue is in the selection then the residue index is returned
+    def get_selection_residue_indices (self, selection : 'Selection') -> List[int]:
+        return list(set([ self.atoms[atom_index].residue_index for atom_index in selection.atom_indices ]))
+
     # Create a new structure from the current using a selection to filter atoms
     def filter (self, selection : 'Selection') -> 'Structure':
         if not selection:
