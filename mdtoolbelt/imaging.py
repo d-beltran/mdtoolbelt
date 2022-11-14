@@ -7,6 +7,8 @@ from .frame_counts import get_frames_count
 
 import mdtraj
 
+from .gmx_spells import merge_xtc_files
+
 CURSOR_UP_ONE = '\x1b[1A'
 ERASE_LINE = '\x1b[2K'
 ERASE_PREVIOUS_LINE = CURSOR_UP_ONE + ERASE_LINE + CURSOR_UP_ONE
@@ -157,26 +159,3 @@ def smooth_translation (
     residual_files = [ frame_filename ]
     for residual_file in residual_files:
         os.remove(residual_file)
-
-# AUXILIAR -------------------------------------------------------------------------
-
-# Join xtc files
-def merge_xtc_files (current_file : str, new_file : str):
-    # If the current file does nt exist then set the new file as the current file
-    if not os.path.exists(current_file):
-        os.rename(new_file, current_file)
-        return
-    # Run trjcat
-    logs = run([
-        "gmx",
-        "trjcat",
-        "-f",
-        new_file,
-        current_file,
-        '-o',
-        current_file,
-        '-quiet'
-    ],
-    stdout=PIPE,
-    stderr=PIPE
-    ).stdout.decode()

@@ -277,3 +277,25 @@ get_trajectory_subset.format_sets = [
         }
     }
 ]
+
+# Join xtc files
+# This is a minimal implementation of 'gmx trjcat' used in loops
+def merge_xtc_files (current_file : str, new_file : str):
+    # If the current file does nt exist then set the new file as the current file
+    if not os.path.exists(current_file):
+        os.rename(new_file, current_file)
+        return
+    # Run trjcat
+    logs = run([
+        "gmx",
+        "trjcat",
+        "-f",
+        new_file,
+        current_file,
+        '-o',
+        current_file,
+        '-quiet'
+    ],
+    stdout=PIPE,
+    stderr=PIPE
+    ).stdout.decode()

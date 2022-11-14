@@ -3,9 +3,15 @@ from subprocess import run, PIPE
 from typing import List
 
 import mdtraj as mdt
+import numpy as np
 
 from .formats import get_format
 from .frame_counts import get_frames_count
+from .gmx_spells import merge_xtc_files
+
+CURSOR_UP_ONE = '\x1b[1A'
+ERASE_LINE = '\x1b[2K'
+ERASE_PREVIOUS_LINE = CURSOR_UP_ONE + ERASE_LINE + CURSOR_UP_ONE
 
 # Set mdtraj supported formats
 mdtraj_supported_structure_formats = {
@@ -232,3 +238,65 @@ def split_merged_trajectories (
         print('Writting from frame ' + str(start) + ' to frame ' + str(end) + ' to "' + split_filename + '"')
         trajectory_split.save(split_filename)
     
+# Sort atoms in a trajectory file by sorting its coordinates
+# A new atom indices list is expected in order to do the sorting
+def sort_trajectory_atoms (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    output_trajectory_filename : str,
+    new_atom_indices : List[int]
+):
+
+    # Assert we have input values
+    if not input_structure_filename:
+        raise SystemExit('ERROR: Missing input structure filename')
+    if not input_trajectory_filename:
+        raise SystemExit('ERROR: Missing input trajectory filename')
+    if not output_trajectory_filename:
+        raise SystemExit('ERROR: Missing output trajectory filename')
+
+    # Load the topology, which is used further
+    topology = mdt.load_topology(input_structure_filename)
+
+    # Check the new atom indices to match the number of atoms in the topology
+    if len(new_atom_indices) != topology.n_atoms:
+        raise ValueError('The number of atom indices (' + str(len(new_atom_indices)) + ') does not match the number of atoms in topology(' + str(topology.n_atoms) + ')' )
+
+    # If the input and the output trajectory filenames are equal then we must rename the input filename to not overwrite it
+    if input_trajectory_filename == output_trajectory_filename:
+        backup_filename = 'backup.' + input_trajectory_filename
+        os.rename(input_trajectory_filename, backup_filename)
+        input_trajectory_filename = backup_filename
+
+    # If the output trajectory file already exists at this point then we must stop here
+    # The raw trjcat implementation will not join things to the end of it
+    if os.path.exists(output_trajectory_filename):
+        raise SystemExit('The output file already exists and overwrite is not supported for this functionality')
+
+    # Load the trajectory frame by frame
+    trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
+    frame_filename = '.frame.xtc'
+
+    print('\n')
+    for f, frame in enumerate(trajectory):
+        print(ERASE_PREVIOUS_LINE)
+        print('Frame ' + str(f))
+
+        xyz = frame.xyz[0]
+        new_xyz = np.empty(shape=xyz.shape)
+        for i, atom_index in enumerate(new_atom_indices):
+            new_xyz[i] = xyz[atom_index]
+
+        new_frame = mdt.Trajectory([new_xyz],
+            topology=topology,
+            time=frame.time,
+            unitcell_lengths=frame.unitcell_lengths,
+            unitcell_angles=frame.unitcell_angles
+        )
+        new_frame.save(frame_filename)
+        merge_xtc_files(output_trajectory_filename, frame_filename)
+
+    # Remove the residual files
+    residual_files = [ frame_filename ]
+    for residual_file in residual_files:
+        os.remove(residual_file)

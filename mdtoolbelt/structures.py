@@ -11,6 +11,7 @@ import pytraj
 from .formats import get_format
 from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
+from .mdt_spells import sort_trajectory_atoms
 from .utils import residue_name_to_letter
 
 # DANI: git se ha rallado
@@ -147,6 +148,10 @@ class Residue:
         self._index = None
         self._atom_indices = []
         self._chain_index = None
+        # Set other auxiliar variables
+        # Trajectory atom sorter is a function used to sort coordinates in a trajectory file
+        # This function is generated when sorting indices in the structure
+        self.trajectory_atom_sorter = None
 
     def __repr__ (self):
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
@@ -184,7 +189,18 @@ class Residue:
     # This value is set by the structure itself
     def get_index (self) -> Optional[int]:
         return self._index
-    index = property(get_index, None, None, "The residue index according to parent structure residues (read only)")
+    def set_index (self, index):
+        # Update residue atoms
+        for atom in self.atoms:
+            atom._residue_index = index
+        # Update residue chain
+        current_index = self._index
+        chain = self.chain
+        residue_chain_index = chain._residue_indices.index(current_index)
+        chain._residue_indices[residue_chain_index] = index
+        # Finally update self index
+        self._index = index
+    index = property(get_index, set_index, None, "The residue index according to parent structure residues (read only)")
 
     # The atom indices according to parent structure atoms for atoms in this residue
     # If atom indices are set then make changes in all the structure to make this change coherent
@@ -338,7 +354,7 @@ class Chain:
     # This value is set by the structure itself
     def get_index (self) -> Optional[int]:
         return self._index
-    # When the index is set all residues are updated with the nex chain index
+    # When the index is set all residues are updated with the next chain index
     def set_index (self, index : int):
         for residue in self.residues:
             residue._chain_index = index
@@ -489,6 +505,26 @@ class Structure:
             atom = self.atoms[atom_index]
             atom._residue_index = new_residue_index
 
+    # Purge residue from the structure and its chain
+    # This can be done only when the residue has no atoms left in the structure
+    # Renumerate all residue indices which have been offsetted as a result of the purge
+    def purge_residue (self, residue : 'Residue'):
+        # Check the residue can be purged
+        if residue not in self.residues:
+            raise ValueError(str(residue) + ' is not in the structure already')
+        if len(residue.atom_indices) > 0:
+            raise ValueError(str(residue) + ' is still having atoms and thus it cannot be purged')
+        # Get the current index of the residue to be purged
+        purged_index = residue.index
+        # Residues and their atoms below this index are not to be modified
+        # Residues and their atoms over this index must be renumerated
+        for affected_residue in self.residues[purged_index+1:]:
+            # Chaging the index automatically changes all residues atoms '_residue_index' values
+            # Chaging the index automatically changes its corresponding index in residue chain '_residue_indices'
+            affected_residue.index -= 1
+        # Finally, remove the current residue from the list of residues in the structure
+        del self.residues[purged_index]
+
     # Set a new chain in the structure
     # WARNING: Residues and atoms must be set already before setting chains
     def set_new_chain (self, chain : 'Chain'):
@@ -515,10 +551,10 @@ class Structure:
         # Chains and their residues below this index are not to be modified
         # Chains and their residues over this index must be renumerated
         for affected_chain in self.chains[purged_index+1:]:
-            # Chaging the index automatically changes all chain residues '_chain_index' values.
+            # Chaging the index automatically changes all chain residues '_chain_index' values
             affected_chain.index -= 1
         # Finally, remove the current chain from the list of chains in the structure
-        self.chains.remove(chain)
+        del self.chains[purged_index]
 
     # Set the structure from a ProDy topology
     @classmethod
@@ -1043,30 +1079,78 @@ class Structure:
             # Iterate over repeated residues and check if residues are covalently bonded
             # If any pair of residues are bonded add them both to the splitted residues list
             # At the end, all non-splitted residues will be considered duplicated residues
-            splitted_residues = set()
+            # WARNING: Using a set here is not possible since repeated residues have the same hash
+            # WARNING: Also comparing residues themselves is not advisable, so we use indices at this point
+            splitted_residue_indices = set()
             for residue, other_residues in otherwise(residues):
-                if residue in splitted_residues:
+                if residue.index in splitted_residue_indices:
                     continue
                 # Get atom indices for all atoms connected to the current residue
                 residue_bonds = sum([ covalent_bonds[index] for index in residue.atom_indices ], [])
                 for other_residue in other_residues:
                     # Get all atom indices for each other residue and collate with the current residue bonds
                     if any( index in residue_bonds for index in other_residue.atom_indices ):
-                        splitted_residues.add(residue)
-                        splitted_residues.add(other_residue)
-            splitted_residues = list(splitted_residues)
-            duplicated_residues = [ residue for residue in residues if residue not in splitted_residues ]
+                        splitted_residue_indices.add(residue.index)
+                        splitted_residue_indices.add(other_residue.index)
+            # Finally obtain the splitted residues from its indices
+            splitted_residues = [ self.residues[index] for index in splitted_residue_indices ]
+            # Repeated residues which are not splitted are thus duplicated
+            duplicated_residues = [ residue for residue in residues if residue.index not in splitted_residue_indices ]
             # Update the overall lists
             if len(splitted_residues) > 0:
                 overall_splitted_residues.append(splitted_residues)
-            overall_duplicated_residues += duplicated_residues
+            if len(duplicated_residues) > 0:
+                overall_duplicated_residues += duplicated_residues
         # In case we have splitted residues
         if len(overall_splitted_residues) > 0:
             if display_summary:
                 print('    There are splitted residues (' + str(len(overall_splitted_residues)) + ')')
-            # Nothing to do here yet
+            # Fix splitted residues
             if fix_residues:
-                print('        WARNING: Splitted residues can not be fixed yet')
+                print('        Splitted residues will be merged')
+                # Set a function to sort atoms and residues by index
+                def by_index (v):
+                    return v._index
+                # Merge splitted residues
+                # WARNING: Merging residues without sorting atoms is possible, but this would be lost after exporting to pdb
+                for splitted_residues in overall_splitted_residues:
+                    # The first residue (i.e. the residue with the lower index) will be the one which remains
+                    # It will absorb other residue atom indices
+                    splitted_residues.sort(key=by_index) # Residues are not sorted by default, this is mandatory
+                    first_residue = splitted_residues[0]
+                    other_residues = splitted_residues[1:]
+                    for residue in other_residues:
+                        for atom in residue.atoms:
+                            atom.residue = first_residue
+                        # Then these other residues are eliminated
+                        self.purge_residue(residue)
+                print('        Atoms will be sorted to be together by residues')
+                print('        WARNING: This will break any associated trajectory if coordinates are not sorted as well')
+                # Sort atoms to group residue atoms together
+                # Note that each atom index must be updated
+                new_atom_indices = sum([ residue.atom_indices for residue in self.residues ], [])
+                for i, new_atom_index in enumerate(new_atom_indices):
+                    atom = self.atoms[new_atom_index]
+                    atom._index = i
+                self.atoms.sort(key=by_index)
+                # Also residue 'atom_indices' must be updated
+                for residue in self.residues:
+                    residue._atom_indices = [ new_atom_indices[index] for index in residue._atom_indices ]
+                # Prepare the trajectory atom sorter which must be returned
+                # Include atom indices already so the user has to provide only the structure and trajectory filenames
+                def trajectory_atom_sorter (
+                    input_structure_filename : str,
+                    input_trajectory_filename : str,
+                    output_trajectory_filename : str
+                ):
+                    sort_trajectory_atoms(
+                        input_structure_filename,
+                        input_trajectory_filename,
+                        output_trajectory_filename,
+                        new_atom_indices
+                    )
+                self.trajectory_atom_sorter = trajectory_atom_sorter
+                modified = True
         else:
             if display_summary:
                 print('    There are no splitted residues')
