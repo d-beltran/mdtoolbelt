@@ -148,10 +148,6 @@ class Residue:
         self._index = None
         self._atom_indices = []
         self._chain_index = None
-        # Set other auxiliar variables
-        # Trajectory atom sorter is a function used to sort coordinates in a trajectory file
-        # This function is generated when sorting indices in the structure
-        self.trajectory_atom_sorter = None
 
     def __repr__ (self):
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
@@ -470,8 +466,13 @@ class Structure:
             self.set_new_residue(residue)
         for chain in chains:
             self.set_new_chain(chain)
-        # Set other internal variables
+        # --- Set other internal variables ---
+        # Set bonds between atoms
         self._bonds = None
+        # --- Set other auxiliar variables ---
+        # Trajectory atom sorter is a function used to sort coordinates in a trajectory file
+        # This function is generated when sorting indices in the structure
+        self.trajectory_atom_sorter = None
 
     def __repr__ (self):
         return '<Structure (' + str(len(self.atoms)) + ' atoms)>'
