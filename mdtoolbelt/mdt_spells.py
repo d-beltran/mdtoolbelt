@@ -277,23 +277,29 @@ def sort_trajectory_atoms (
     trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
     frame_filename = '.frame.xtc'
 
-    print('\n')
+    # Print an empty line for the first 'ERASE_PREVIOUS_LINE' to not delete a previous log
+    print()
+
     for f, frame in enumerate(trajectory):
+        # Update the current frame log
         print(ERASE_PREVIOUS_LINE)
         print('Frame ' + str(f))
 
+        # Sort coordinates according to new atom indices
         xyz = frame.xyz[0]
         new_xyz = np.empty(shape=xyz.shape)
         for i, atom_index in enumerate(new_atom_indices):
             new_xyz[i] = xyz[atom_index]
 
+        # Export the current frame
         new_frame = mdt.Trajectory([new_xyz],
             topology=topology,
-            time=frame.time,
-            unitcell_lengths=frame.unitcell_lengths,
-            unitcell_angles=frame.unitcell_angles
+            time=frame.time, # This is necessary for the new mdtraj trajectory to be functional
+            unitcell_lengths=frame.unitcell_lengths, # This is necessary for the new mdtraj trajectory to be functional
+            unitcell_angles=frame.unitcell_angles # This is necessary for the new mdtraj trajectory to be functional
         )
         new_frame.save(frame_filename)
+        # Join current frame to the output trajectory
         merge_xtc_files(output_trajectory_filename, frame_filename)
 
     # Remove the residual files
