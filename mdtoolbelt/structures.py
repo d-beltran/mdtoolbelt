@@ -996,9 +996,7 @@ class Structure:
                 repeated_chains.append(chain)
         # Display the summary of repeated chains if requested
         if display_summary:
-            if len(repeated_chains) == 0:
-                print('There are no repeated chains')
-            else:
+            if len(repeated_chains) > 0:
                 print('WARNING: There are repeated chains:')
                 for chain_name, chains in name_chains.items():
                     chains_count = len(chains)
@@ -1084,8 +1082,6 @@ class Structure:
         # Grouped resdiues with more than 1 result are considered as repeated
         repeated_residues = [ residues for residues in grouped_residues.values() if len(residues) > 1 ]
         if len(repeated_residues) == 0:
-            if display_summary:
-                print('There are no repeated residues')
             return modified
         # In case we have repeated residues...
         if display_summary:
@@ -1145,7 +1141,7 @@ class Structure:
                         # Then these other residues are eliminated
                         self.purge_residue(residue)
                 print('        Atoms will be sorted to be together by residues')
-                print('        WARNING: This will break any associated trajectory if coordinates are not sorted as well')
+                print('        NEVER FORGET: This will break any associated trajectory if coordinates are not sorted as well')
                 # Sort atoms to group residue atoms together
                 # Note that each atom index must be updated
                 new_atom_indices = sum([ residue.atom_indices for residue in self.residues ], [])
@@ -1171,9 +1167,6 @@ class Structure:
                     )
                 self.trajectory_atom_sorter = trajectory_atom_sorter
                 modified = True
-        else:
-            if display_summary:
-                print('    There are no splitted residues')
          # In case we have duplicated residues
         if len(overall_duplicated_residues) > 0:
             if display_summary:
@@ -1186,9 +1179,6 @@ class Structure:
                     maximum_chain_number = max([ residue.number for residue in duplicated_residue.chain.residues ])
                     duplicated_residue.number = maximum_chain_number + 1
                 modified = True
-        else:
-            if display_summary:
-                print('There are no duplicated residues')
         return modified
 
     # Atoms with identical chain, residue and name are considered repeated atoms
@@ -1225,17 +1215,16 @@ class Structure:
                 while new_name in current_names:
                     number += 1
                     new_name = initial + str(number)
+                # Save an example for the logs if there is none yet
+                if not example:
+                    example = atom.name + ' renamed as ' + new_name + ' in residue ' + str(residue)
                 atom.name = new_name
                 current_names.append(new_name)
-                if not example:
-                    example = str(atom) + ' renamed as ' + new_name
         # Display the summary of repeated atoms if requested
         if display_summary:
             if repeated_atoms_count > 0:
                 print('WARNING: There are repeated atoms (' + str(repeated_atoms_count) + ')')
-                print('e.g. ' + example)
-            else:
-                print('There are no repeated atoms')
+                print('    e.g. ' + example)
         return repeated_atoms_count > 0
 
     # Get all atomic covalent (strong) bonds
