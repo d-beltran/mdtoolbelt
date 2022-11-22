@@ -656,14 +656,33 @@ class Structure:
 
     # Fix atom elements by gueesing them when missing
     # Set all elements with the first letter upper and the second (if any) lower
-    def fix_atom_elements (self):
+    # Also check if atom elements are coherent with atom names
+    # If 'trust' is set as False then we impose elements according to what we can guess from the atom name
+    # Return True if any element was modified or False if not
+    def fix_atom_elements (self, trust : bool = True) -> bool:
+        modified = False
         for atom in self.atoms:
             # Make sure elements have the first letter cap and the second letter not cap
             if atom.element:
-                atom.element = first_cap_only(atom.element)
+                new_element = first_cap_only(atom.element)
+                if atom.element != new_element:
+                    atom.element = new_element
+                    modified = True
+                # Check the element to match what we would guess from the atom name
+                # In case it does not just warn the user
+                guess = guess_name_element(atom.name)
+                if atom.element != guess:
+                    print('WARNING: Suspicious element for atom ' + atom.name + ' -> ' + atom.element + " (shoudn't it be " + guess + "?)")
+                    if not trust:
+                        atom.element = guess
+                        modified = True
             # If elements are missing then guess them from atom names
             else:
                 atom.element = guess_name_element(atom.name)
+                modified = True
+        if modified:
+            print('WARNING: Atom elements have been modified')
+        return modified
 
     # Generate a pdb file with current structure
     def generate_pdb_file(self, pdb_filename : str):
