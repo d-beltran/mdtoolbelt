@@ -1136,7 +1136,7 @@ class Structure:
                 self.atoms.sort(key=by_index)
                 # Also residue 'atom_indices' must be updated
                 for residue in self.residues:
-                    residue._atom_indices = [ new_atom_indices[index] for index in residue._atom_indices ]
+                    residue._atom_indices = [ new_atom_indices.index(atom_index) for atom_index in residue._atom_indices ]
                 # Prepare the trajectory atom sorter which must be returned
                 # Include atom indices already so the user has to provide only the structure and trajectory filenames
                 def trajectory_atom_sorter (
