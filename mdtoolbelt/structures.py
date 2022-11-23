@@ -622,7 +622,7 @@ class Structure:
                 x_coord = float(line[30:38])
                 y_coord = float(line[38:46])
                 z_coord = float(line[46:54])
-                element = line[77:79].strip()
+                element = line[76:78].strip()
                 # Set the parsed atom, residue and chain
                 parsed_atom = Atom(name=atom_name, element=element, coords=(x_coord, y_coord, z_coord))
                 parsed_residue = Residue(name=residue_name, number=residue_number, icode=icode)
@@ -701,10 +701,10 @@ class Structure:
                 x_coord, y_coord, z_coord = [ "{:.3f}".format(coord).rjust(8) for coord in coords ]
                 occupancy = '1.00' # Just a placeholder
                 temp_factor = '0.00' # Just a placeholder
-                element = atom.element
+                element = atom.element.rjust(2)
                 atom_line = ('ATOM  ' + index + ' ' + name + ' ' + residue_name
                     + chain_name + residue_number + icode + '   ' + x_coord + y_coord + z_coord
-                    + '  ' + occupancy + '  ' + temp_factor + '           ' + element).ljust(80) + '\n'
+                    + '  ' + occupancy + '  ' + temp_factor + '          ' + element).ljust(80) + '\n'
                 file.write(atom_line)
 
     # Get the structure equivalent prody topology
