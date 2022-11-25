@@ -1306,7 +1306,7 @@ def first_cap_only (name : str) -> str:
     return first_character + second_character
 
 # Guess an atom element from its name
-supported_elements = [ 'C', 'N', 'O', 'H', 'P', 'S', 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe' ]
+supported_elements = [ 'C', 'N', 'O', 'H', 'P', 'S', 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe', 'Br', 'Ca', 'Mn' ]
 def guess_name_element (name: str) -> str:
     length = len(name)
     next_character = None
