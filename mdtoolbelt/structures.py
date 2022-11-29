@@ -478,14 +478,17 @@ class Structure:
         return '<Structure (' + str(len(self.atoms)) + ' atoms)>'
 
     # The bonds between atoms (read only)
-    def get_bonds (self):
+    def get_bonds (self) -> List[ List[int] ]:
         # Return the stored value, if exists
         if self._bonds:
             return self._bonds
         # If not, we must calculate the bonds using vmd
         self._bonds = self.get_covalent_bonds()
         return self._bonds
-    bonds = property(get_bonds, None, None, "The structure bonds (read only)")
+    # Force specific bonds
+    def set_bonds (self, bonds : List[ List[int] ]):
+        self._bonds = bonds
+    bonds = property(get_bonds, set_bonds, None, "The structure bonds (read only)")
 
     # Set a new atom in the structure
     def set_new_atom (self, atom : 'Atom'):
