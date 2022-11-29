@@ -134,7 +134,13 @@ def get_trajectory_subset (
 
     # WARNING: This print here is not just a log. DO NOT REMOVE IT
     # WARNING: It fixes an error (ValueError: unitcell angle < 0) which happens sometimes
-    print(reduced_trajectory)
+    # DANI: Lo de abajo tal vez sea suficiente, por eso he provado a quitarlo
+    #print(reduced_trajectory)
+
+    # This is necessary sometimes to avoid the following error:
+    #     ValueError: Only rectilinear boxes can be saved to mdcrd files
+    reduced_trajectory.unitcell_lengths = [0,0,0]
+    reduced_trajectory.unitcell_angles = [0,0,0]
 
     # Write reduced trajectory to output file
     reduced_trajectory.save(output_trajectory_filename)
