@@ -3,6 +3,7 @@
 # http://www.ks.uiuc.edu/Research/vmd/
 
 import os
+from os.path import exists
 
 from subprocess import run, PIPE, STDOUT, Popen
 from typing import Optional, List
@@ -37,7 +38,7 @@ def vmd_to_pdb (
         file.write('exit\n')
 
     # Run VMD
-    logs = run([
+    vmd_process = run([
         "vmd",
         input_structure_filename,
         single_frame_filename,
@@ -45,7 +46,14 @@ def vmd_to_pdb (
         commands_filename,
         "-dispdev",
         "none"
-    ], stdout=PIPE, stderr=PIPE).stdout.decode()
+    ], stdout=PIPE, stderr=PIPE)
+    output_logs = vmd_process.stdout.decode()
+
+    if not exists(output_structure_filename):
+        print(output_logs)
+        error_logs = vmd_process.stderr.decode()
+        print(error_logs)
+        raise SystemExit('Something went wrong with VMD')
 
     os.remove(commands_filename)
 # Set function supported formats
@@ -91,7 +99,7 @@ def chainer (
         output_pdb_filename = input_pdb_filename
 
     # Check the file exists
-    if not os.path.exists(input_pdb_filename):
+    if not exists(input_pdb_filename):
         raise SystemExit('ERROR: The file does not exist')
        
     with open(commands_filename, "w") as file:
@@ -130,6 +138,11 @@ def chainer (
         "-dispdev",
         "none"
     ], stdout=PIPE, stderr=PIPE).stdout.decode()
+
+    # If the expected output file was not generated then stop here and warn the user
+    if not exists(output_pdb_filename):
+        print(logs)
+        raise SystemExit('Something went wrong with VMD')
 
     # Remove the vmd commands file
     os.remove(commands_filename)
@@ -172,7 +185,8 @@ def merge_and_convert_trajectories (
         "none"
     ], stdout=PIPE, stderr=STDOUT).stdout.decode() # Redirect errors to the output in order to dont show them in console
 
-    if not os.path.exists(output_trajectory_filename):
+    # If the expected output file was not generated then stop here and warn the user
+    if not exists(output_trajectory_filename):
         print(logs)
         raise SystemExit('Something went wrong with VMD')
 
@@ -234,6 +248,11 @@ def get_vmd_selection_atom_indices (input_structure_filename : str, selection : 
         "none"
     ], stdout=PIPE, stderr=PIPE).stdout.decode()
 
+    # If the expected output file was not generated then stop here and warn the user
+    if not exists(atom_indices_filename):
+        print(logs)
+        raise SystemExit('Something went wrong with VMD')
+
     # Read the VMD output
     with open(atom_indices_filename, 'r') as file:
         raw_atom_indices = file.read()
@@ -280,7 +299,7 @@ def get_covalent_bonds (structure_filename : str, selection : Optional['Selectio
     ], stdout=PIPE, stderr=PIPE).stdout.decode()
 
     # If the output file is missing at this point then it means something went wrong
-    if not os.path.exists(output_bonds_file):
+    if not exists(output_bonds_file):
         print(logs)
         raise SystemExit('Something went wrong with VMD')
     
@@ -374,6 +393,11 @@ def get_covalent_bonds_between (
         "-dispdev",
         "none"
     ], stdout=PIPE, stderr=PIPE).stdout.decode()
+
+    # If the expected output file was not generated then stop here and warn the user
+    if not exists(output_index_1_file) or not exists(output_bonds_file) or not exists(output_index_2_file):
+        print(logs)
+        raise SystemExit('Something went wrong with VMD')
     
     # Read the VMD output
     with open(output_index_1_file, 'r') as file:
