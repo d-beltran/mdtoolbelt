@@ -278,6 +278,11 @@ def get_covalent_bonds (structure_filename : str, selection : Optional['Selectio
         "-dispdev",
         "none"
     ], stdout=PIPE, stderr=PIPE).stdout.decode()
+
+    # If the output file is missing at this point then it means something went wrong
+    if not os.path.exists(output_bonds_file):
+        print(logs)
+        raise SystemExit('Something went wrong with VMD')
     
     # Read the VMD output
     with open(output_bonds_file, 'r') as file:
