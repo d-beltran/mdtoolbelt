@@ -73,6 +73,9 @@ def convert (
         # If there is no output filename it means we have nothing to do here
         if not output_structure_filename:
             return
+        # If the input and output names match then we are done
+        if input_structure_filename == output_structure_filename:
+            return
         # If input and output formats are the same then just copy the file with the new name
         if input_structure_format == output_structure_format:
             copyfile(input_structure_filename, output_structure_filename)
@@ -121,6 +124,9 @@ def convert (
     def convert_trajectory ():
         # If there is no output filename it means we have nothing to do here
         if not output_trajectory_filename:
+            return
+        # If the input and output names match then we are done
+        if trajectory_files_count == 1 and input_trajectory_filenames[0] == output_trajectory_filename:
             return
         # If there is only 1 input trajectory and it has the same format that the output then just copy the file with the new name
         if trajectory_files_count == 1 and input_trajectory_format == output_trajectory_format:
