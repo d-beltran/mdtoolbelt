@@ -950,9 +950,9 @@ class Structure:
         # Convert the selection to residues
         residues = list(set([ self.atoms[i].residue for i in selection.atom_indices ]))
         # Set the chain index of every residue to the new chain
-        chain_index = chain.index
         for residue in residues:
-            residue.set_chain_index(chain_index)
+            # WARNING: Chain index has to be read every iteration since it may change. Do not save it
+            residue.set_chain_index(chain.index)
 
     # Get the next available chain name
     # Find alphabetically the first letter which is not yet used as a chain name
