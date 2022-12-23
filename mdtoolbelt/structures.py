@@ -948,10 +948,12 @@ class Structure:
             chain = Chain(name=letter)
             self.set_new_chain(chain)
         # Convert the selection to residues
-        residues = list(set([ self.atoms[i].residue for i in selection.atom_indices ]))
+        # WARNING: Remember to never use a set when handling residues or you may eliminate 'duplicated' residues
+        residue_indices = self.get_selection_residue_indices(selection)
         # Set the chain index of every residue to the new chain
-        for residue in residues:
+        for residue_index in residue_indices:
             # WARNING: Chain index has to be read every iteration since it may change. Do not save it
+            residue = self.residues[residue_index]
             residue.set_chain_index(chain.index)
 
     # Get the next available chain name
