@@ -472,7 +472,9 @@ class Structure:
         # --- Set other auxiliar variables ---
         # Trajectory atom sorter is a function used to sort coordinates in a trajectory file
         # This function is generated when sorting indices in the structure
+        # Also the new atom order is saved
         self.trajectory_atom_sorter = None
+        self.new_atom_order = None
 
     def __repr__ (self):
         return '<Structure (' + str(len(self.atoms)) + ' atoms)>'
@@ -1171,6 +1173,7 @@ class Structure:
                         new_atom_indices
                     )
                 self.trajectory_atom_sorter = trajectory_atom_sorter
+                self.new_atom_order = new_atom_indices
                 modified = True
          # In case we have duplicated residues
         if len(overall_duplicated_residues) > 0:

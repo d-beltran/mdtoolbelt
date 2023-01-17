@@ -219,6 +219,7 @@ def get_trajectory_subset (
         "0",
         "-quiet"
     ], stdin=p.stdout, stderr=PIPE).stderr.decode()
+    p.stdout.close()
     os.remove(residual_frame)
 
     # Mine frame times from the logs
@@ -260,6 +261,7 @@ def get_trajectory_subset (
         str(step_time),
         "-quiet"
     ], stdin=p.stdout, stderr=PIPE).stderr.decode()
+    p.stdout.close()
 
     # If output has not been generated then warn the user
     if not os.path.exists(output_trajectory_filename):
