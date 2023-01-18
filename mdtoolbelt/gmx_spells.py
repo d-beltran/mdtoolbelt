@@ -208,7 +208,7 @@ def get_trajectory_subset (
         "echo",
         "System",
     ], stdout=PIPE)
-    logs = run([
+    process = run([
         "gmx",
         "trjconv",
         "-f",
@@ -218,14 +218,24 @@ def get_trajectory_subset (
         "-dump",
         "0",
         "-quiet"
-    ], stdin=p.stdout, stderr=PIPE).stderr.decode()
+    ], stdin=p.stdout, stdout=PIPE, stderr=PIPE)
+    output_logs = process.stdout.decode()
+    error_logs = process.stderr.decode()
     p.stdout.close()
+
+    # If the residual frame is not generated after running gromacs then it means something went wrong
+    if not os.path.exists(residual_frame):
+        print(output_logs)
+        print(error_logs)
+        raise SystemExit('Something went wrong with Gromacs')
+
+    # Remove the residual frame
     os.remove(residual_frame)
 
     # Mine frame times from the logs
     trajectory_start_time = None
     trajectory_first_frame_time = None
-    for line in logs.split('\n'):
+    for line in error_logs.split('\n'):
         if 'Reading frame       0' in line:
             trajectory_start_time = float(line.strip().split()[-1])
             continue
