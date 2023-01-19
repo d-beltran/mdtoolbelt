@@ -1235,6 +1235,38 @@ class Structure:
                 print('    e.g. ' + example)
         return repeated_atoms_count > 0
 
+    # Check bonds to be incoherent
+    # i.e. check atoms not to have more or less bonds than expected according to their element
+    # - hydrogen must have 1 and only 1 bond
+    # - oxygen must have 1 or 2 bonds
+    # - nitrogen must have 1 - 3 bonds
+    # - carbon must have 2 - 4 bonds
+    # - sulfur must have 2 - 6 bonds
+    # - phosphorus must have 2 - 6 bonds
+    def check_incoherent_bonds (self) -> bool:
+        for atom in self.atoms:
+            nbonds = len(atom.get_bonds())
+            element = atom.element
+            if element == 'H' and nbonds != 1:
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1 bond')
+                return True
+            if element == 'O' and (2 < nbonds or nbonds < 1):
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-2 bonds')
+                return True
+            if element == 'N' and (3 < nbonds or nbonds < 1):
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-3 bonds')
+                return True
+            if element == 'C' and (4 < nbonds or nbonds < 2):
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-4 bonds')
+                return True
+            if element == 'S' and (6 < nbonds or nbonds < 2):
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-6 bonds')
+                return True
+            if element == 'P' and (6 < nbonds or nbonds < 2):
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-6 bonds')
+                return True
+        return False
+
     # Get all atomic covalent (strong) bonds
     # Bonds are defined as a list of atom indices for each atom in the structure
     # Rely on VMD logic to do so
