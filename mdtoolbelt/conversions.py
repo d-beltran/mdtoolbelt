@@ -45,6 +45,10 @@ def convert (
     if output_trajectory_filename and not input_trajectory_filenames:
         raise SystemExit('Missing input trajectory')
 
+    # If the input trajectory filename is not a list but a single string (which should not happen) then fix it
+    if type(input_trajectory_filenames) == str:
+        input_trajectory_filenames = [input_trajectory_filenames]
+
     # Get the first trajectory as a sample for those processes which do not require the whole trajectory
     trajectory_sample = input_trajectory_filenames[0] if input_trajectory_filenames else None
 

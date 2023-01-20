@@ -309,7 +309,7 @@ def sort_trajectory_atoms (
         # Join current frame to the output trajectory
         merge_xtc_files(output_trajectory_filename, frame_filename)
 
-    # Remove the residual files
-    residual_files = [ frame_filename ]
-    for residual_file in residual_files:
-        os.remove(residual_file)
+    # Remove the residual file
+    # WARNING: It may not exist if the trajectory has 1 frame
+    if os.path.exists(frame_filename):
+        os.remove(frame_filename)
