@@ -1239,7 +1239,7 @@ class Structure:
     # i.e. check atoms not to have more or less bonds than expected according to their element
     # - hydrogen must have 1 and only 1 bond
     # - oxygen must have 1 or 2 bonds
-    # - nitrogen must have 1 - 3 bonds
+    # - nitrogen must have 1 - 4 bonds
     # - carbon must have 2 - 4 bonds
     # - sulfur must have 2 - 6 bonds
     # - phosphorus must have 2 - 6 bonds
@@ -1253,8 +1253,8 @@ class Structure:
             if element == 'O' and (2 < nbonds or nbonds < 1):
                 print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-2 bonds')
                 return True
-            if element == 'N' and (3 < nbonds or nbonds < 1):
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-3 bonds')
+            if element == 'N' and (4 < nbonds or nbonds < 1):
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-4 bonds')
                 return True
             if element == 'C' and (4 < nbonds or nbonds < 2):
                 print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-4 bonds')
