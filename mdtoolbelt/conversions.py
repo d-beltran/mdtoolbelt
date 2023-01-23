@@ -8,6 +8,7 @@ from .vmd_spells import vmd_to_pdb
 from .gmx_spells import get_structure, get_structure_alone
 from .gmx_spells import merge_and_convert_trajectories as gmx_merge_and_convert_trajectories
 from .mdt_spells import merge_and_convert_trajectories as mdt_merge_and_convert_trajectories
+from .mdt_spells import merge_and_convert_trajectories_alternative as mdt_merge_and_convert_trajectories_alternative
 from .mdt_spells import merge_and_convert_trajectories_unefficient as mdt_merge_and_convert_trajectories_unefficient
 from .vmd_spells import merge_and_convert_trajectories as vmd_merge_and_convert_trajectories
 
@@ -23,6 +24,7 @@ structure_converting_functions = [ get_structure, get_structure_alone, vmd_to_pd
 trajectory_converting_functions = [
     mdt_merge_and_convert_trajectories,
     gmx_merge_and_convert_trajectories,
+    mdt_merge_and_convert_trajectories_alternative, # This should only be used in mdcrd to xtc/trr
     vmd_merge_and_convert_trajectories,
     mdt_merge_and_convert_trajectories_unefficient
 ]
@@ -136,6 +138,7 @@ def convert (
         if trajectory_files_count == 1 and input_trajectory_format == output_trajectory_format:
             copyfile(trajectory_sample, output_trajectory_filename)
             return
+        print('Converting trajectory format from ' + input_trajectory_format + ' to ' + output_trajectory_format)
         # Otherwise, we must convert
         # Choose the right conversion function according to input and output formats
         request_format_set = {

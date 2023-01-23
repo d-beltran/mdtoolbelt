@@ -52,6 +52,67 @@ merge_and_convert_trajectories.format_sets = [
 ]
 
 # Merge and convert trajectories without the mdconvert command
+# WARNING: This process is slow since we must iterate and merge each frame
+# WARNING: This process is restricted to trr/xtc output files given the merger
+def merge_and_convert_trajectories_alternative (
+    input_structure_filename : str,
+    input_trajectory_filenames : List[str],
+    output_trajectory_filename : str
+    ):
+
+    # Assert we have input values
+    if not input_structure_filename:
+        raise SystemExit('ERROR: Missing input structure filenames')
+    if not input_trajectory_filenames:
+        raise SystemExit('ERROR: Missing input trajectory filenames')
+    if not output_trajectory_filename:
+        raise SystemExit('ERROR: Missing output trajectory filename')
+
+    # Load the topology, which is used further
+    topology = mdt.load_topology(input_structure_filename)
+
+    # If the output trajectory filename matches any input file then we must rename the input filename to not overwrite it
+    if output_trajectory_filename in input_trajectory_filenames:
+        backup_filename = 'backup.' + output_trajectory_filename
+        os.rename(output_trajectory_filename, backup_filename)
+        repeated_input_filename_index = input_trajectory_filenames.index(output_trajectory_filename)
+        input_trajectory_filenames[repeated_input_filename_index] = backup_filename
+
+    # If the output trajectory file already exists at this point then we must stop here
+    # The raw trjcat implementation will not join things to the end of it
+    if os.path.exists(output_trajectory_filename):
+        raise SystemExit('The output file already exists and overwrite is not supported for this functionality')
+    # Print an empty line for the first 'ERASE_PREVIOUS_LINE' to not delete a previous log
+    print()
+    # Iterate over the different input trajectory filenames
+    frame_filename = '.frame.xtc'
+    for input_trajectory_filename in input_trajectory_filenames:
+        # Load the trajectory frame by frame
+        trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
+        for f, frame in enumerate(trajectory):
+            # Update the current frame log
+            print(ERASE_PREVIOUS_LINE)
+            print('Frame ' + str(f))
+            frame.save(frame_filename)
+            # Join current frame to the output trajectory
+            merge_xtc_files(output_trajectory_filename, frame_filename)
+    # Remove the residual file
+    # WARNING: It may not exist if the trajectory has 1 frame
+    if os.path.exists(frame_filename):
+        os.remove(frame_filename)
+merge_and_convert_trajectories_alternative.format_sets = [
+    {
+        'inputs': {
+            'input_structure_filename': mdtraj_supported_structure_formats,
+            'input_trajectory_filenames': mdtraj_supported_trajectory_formats
+        },
+        'outputs': {
+            'output_trajectory_filename': {'xtc', 'trr'}
+        }
+    },
+]
+
+# Merge and convert trajectories without the mdconvert command
 # WARNING: Note that this process is not memory efficient so beware the size of trajectories to be converted
 # DEPRECATED: This function was meant to convert trajectories to mdcrd, which is not supported by mdconvert
 # DEPRECATED: However the export to mdcrd in mdtraj does not allow to remove the periodic box, which may be a problem
@@ -61,6 +122,7 @@ def merge_and_convert_trajectories_unefficient (
     input_trajectory_filenames : List[str],
     output_trajectory_filename : str,
 ):
+    print('WARNING: You are using a not memory efficient tool. If the trajectory is too big your system may not hold it.')
     # Load all trajectories together
     sample_trajectory = input_trajectory_filenames[0]
     if input_structure_filename:

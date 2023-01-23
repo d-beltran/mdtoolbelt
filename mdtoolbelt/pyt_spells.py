@@ -2,7 +2,7 @@ import pytraj as pyt
 
 # Set pytraj supported formats
 pytraj_supported_structure_formats = {'prmtop', 'pdb', 'parm7', 'mol2', 'psf', 'cif', 'top', 'sdf'}
-pytraj_supported_trajectory_formats = {'xtc', 'trr', 'crd', 'nc', 'dcd'}
+pytraj_supported_trajectory_formats = {'xtc', 'trr', 'crd', 'mdcrd', 'nc', 'dcd'}
 
 # Get the trajectory frames number using pytraj
 def get_frames_count (

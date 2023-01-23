@@ -156,6 +156,9 @@ def merge_and_convert_trajectories (
     output_trajectory_filename : str
     ):
 
+    print('WARNING: You are using a not memory efficient tool. If the trajectory is too big your system may not hold it.')
+    print('Note that we cannot display the progress of the conversion since we are using VMD')
+
     # Get the format to export coordinates
     output_trajectory_format = get_format(output_trajectory_filename)
 
