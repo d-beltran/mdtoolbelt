@@ -755,7 +755,7 @@ class Structure:
         if syntax == 'pytraj':
             pytraj_topology = self.get_pytraj_topology()
             pytraj_selection = pytraj_topology[selection_string]
-            atom_indices = [ atom.index for atom in prody_selection.atoms ]
+            atom_indices = [ atom.index for atom in pytraj_selection.atoms ]
             if len(atom_indices) == 0:
                 return None
             return Selection(atom_indices)
