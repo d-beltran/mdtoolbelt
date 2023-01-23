@@ -1,3 +1,10 @@
+import sys
+
+# Check if a module has been imported
+def is_imported (module_name : str) -> bool:
+    return module_name in sys.modules
+    
+
 # Set a dictionary with all residue names and their equivalent letters
 residue_name_letters = {
     # Amino acids

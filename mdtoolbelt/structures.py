@@ -5,16 +5,20 @@ from bisect import bisect
 from typing import Optional, Union, Tuple, List, Generator
 Coords = Tuple[float, float, float]
 
-import prody
-import pytraj
-
 from .formats import get_format
 from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
 from .mdt_spells import sort_trajectory_atoms
-from .utils import residue_name_to_letter
+from .utils import is_imported, residue_name_to_letter
 
-# DANI: git se ha rallado
+import pytraj
+# Import these libraries if they are available
+# Otherwise proceed without them
+# The error is not raised until a function using the missing module is called
+try:
+    import prody
+except:
+    pass
 
 # Set all available chains according to pdb standards
 available_caps = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
@@ -565,6 +569,9 @@ class Structure:
     # Set the structure from a ProDy topology
     @classmethod
     def from_prody(cls, prody_topology):
+        # In we do not have prody in our environment then we cannot proceed
+        if not is_imported('prody'):
+            raise SystemExit('Missing dependency error: prody')
         parsed_atoms = []
         parsed_residues = []
         parsed_chains = []
@@ -714,6 +721,9 @@ class Structure:
 
     # Get the structure equivalent prody topology
     def get_prody_topology (self):
+        # In we do not have prody in our environment then we cannot proceed
+        if not is_imported('prody'):
+            raise SystemExit('Missing dependency error: prody')
         # Generate the prody topology
         pdb_filename = '.structure.pdb'
         self.generate_pdb_file(pdb_filename)
@@ -723,6 +733,9 @@ class Structure:
 
      # Get the structure equivalent pytraj topology
     def get_pytraj_topology (self):
+        # In we do not have pytraj in our environment then we cannot proceed
+        if not is_imported('pytraj'):
+            raise SystemExit('Missing dependency error: pytraj')
         # Generate a pdb file from the current structure to feed pytraj
         pdb_filename = '.structure.pdb'
         self.generate_pdb_file(pdb_filename)
@@ -747,12 +760,18 @@ class Structure:
                 return None
             return Selection(atom_indices)
         if syntax == 'prody':
+            # In we do not have prody in our environment then we cannot proceed
+            if not is_imported('prody'):
+                raise SystemExit('Missing dependency error: prody')
             prody_topology = self.get_prody_topology()
             prody_selection = prody_topology.select(selection_string)
             if not prody_selection:
                 return None
             return Selection.from_prody(prody_selection)
         if syntax == 'pytraj':
+            # In we do not have pytraj in our environment then we cannot proceed
+            if not is_imported('pytraj'):
+                raise SystemExit('Missing dependency error: pytraj')
             pytraj_topology = self.get_pytraj_topology()
             pytraj_selection = pytraj_topology[selection_string]
             atom_indices = [ atom.index for atom in pytraj_selection.atoms ]
