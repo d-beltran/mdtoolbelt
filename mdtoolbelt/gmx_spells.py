@@ -227,7 +227,7 @@ def get_trajectory_subset (
     if not os.path.exists(residual_frame):
         print(output_logs)
         print(error_logs)
-        raise SystemExit('Something went wrong with Gromacs')
+        raise SystemExit('Something went wrong with Gromacs (residual frame)')
 
     # Remove the residual frame
     os.remove(residual_frame)
@@ -276,7 +276,7 @@ def get_trajectory_subset (
     # If output has not been generated then warn the user
     if not os.path.exists(output_trajectory_filename):
         print(logs)
-        raise SystemExit('Something went wrong with Gromacs')
+        raise SystemExit('Something went wrong with Gromacs (main conversion)')
 
 
 get_trajectory_subset.format_sets = [

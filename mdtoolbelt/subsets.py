@@ -1,5 +1,6 @@
 from inspect import getfullargspec
 
+from .frame_counts import get_frames_count
 from .formats import get_format, get_format_set_suitable_function
 from .gmx_spells import get_trajectory_subset as gmx_get_trajectory_subset
 from .mdt_spells import get_trajectory_subset as mdt_get_trajectory_subset
@@ -16,6 +17,10 @@ def get_trajectory_subset (
     end : int = None,
     step : int = 1
 ):
+    # If there is no end set then the end is the last frame of the simulation
+    if end == None:
+        end = get_frames_count(input_structure_filename, input_trajectory_filename)
+
     # Get the input formats
     input_structure_format = get_format(input_structure_filename)
     input_trajectory_format = get_format(input_trajectory_filename)

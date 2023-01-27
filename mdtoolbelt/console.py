@@ -79,7 +79,7 @@ subset_parser.add_argument(
     "-start", "--start", type=int, default=0,
     help="Start frame")
 subset_parser.add_argument(
-    "-end", "--end", type=int, default=0,
+    "-end", "--end", type=int, default=None,
     help="End frame")
 subset_parser.add_argument(
     "-step", "--step", type=int, default=1,
