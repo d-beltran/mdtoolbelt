@@ -605,66 +605,75 @@ class Structure:
 
     # Set the structure from a pdb file
     @classmethod
-    def from_pdb_file(cls, pdb_filename : str):
-        if not os.path.exists(pdb_filename):
-            raise SystemExit('File "' + pdb_filename + '" not found')
-        if not get_format(pdb_filename) == 'pdb':
-            raise SystemExit('"' + pdb_filename + '" is not a name for a pdb file')
-        # Read the pdb file line by line and set the parsed atoms, residues and chains
+    def from_pdb (cls, pdb_content : str):
+        # Read the pdb content line by line and set the parsed atoms, residues and chains
         parsed_atoms = []
         parsed_residues = []
         parsed_chains = []
         atom_index = -1
         residue_index = -1
-        with open(pdb_filename, 'r') as file:
-            for line in file:
-                # Parse atoms only
-                start = line[0:6]
-                is_atom = start == 'ATOM  ' or start == 'HETATM'
-                if not is_atom:
-                    continue
-                # Mine all atom data
-                atom_name = line[11:16].strip()
-                residue_name = line[17:21].strip()
-                chain = line[21:22]
-                residue_number = int(line[22:26])
-                icode = line[26:27]
-                if icode == ' ':
-                    icode = ''
-                x_coord = float(line[30:38])
-                y_coord = float(line[38:46])
-                z_coord = float(line[46:54])
-                element = line[76:78].strip()
-                # Set the parsed atom, residue and chain
-                parsed_atom = Atom(name=atom_name, element=element, coords=(x_coord, y_coord, z_coord))
-                parsed_residue = Residue(name=residue_name, number=residue_number, icode=icode)
-                parsed_chain = Chain(name=chain)
-                # Add the parsed atom to the list and update the current atom index
-                parsed_atoms.append(parsed_atom)
-                atom_index += 1
-                # Check if we are in the same chain/residue than before
-                same_chain = parsed_chains and parsed_chains[-1] == parsed_chain
-                same_residue = same_chain and parsed_residues and parsed_residue.same_inputs_as(parsed_residues[-1])
-                # Update the residue atom indices
-                # If the residue equals the last parsed residue then use the previous instead
-                if same_residue:
-                    parsed_residue = parsed_residues[-1]
-                    parsed_residue.atom_indices.append(atom_index)
-                    # If it is the same residue then it will be the same chain as well so we can proceed
-                    continue
-                # Otherwise, include the new residue in the list and update the current residue index
-                parsed_residues.append(parsed_residue)
-                residue_index += 1
+        pdb_lines = pdb_content.split('\n')
+        for line in pdb_lines:
+            # Parse atoms only
+            start = line[0:6]
+            is_atom = start == 'ATOM  ' or start == 'HETATM'
+            if not is_atom:
+                continue
+            # Mine all atom data
+            atom_name = line[11:16].strip()
+            residue_name = line[17:21].strip()
+            chain = line[21:22]
+            residue_number = int(line[22:26])
+            icode = line[26:27]
+            if icode == ' ':
+                icode = ''
+            x_coord = float(line[30:38])
+            y_coord = float(line[38:46])
+            z_coord = float(line[46:54])
+            element = line[76:78].strip()
+            # Set the parsed atom, residue and chain
+            parsed_atom = Atom(name=atom_name, element=element, coords=(x_coord, y_coord, z_coord))
+            parsed_residue = Residue(name=residue_name, number=residue_number, icode=icode)
+            parsed_chain = Chain(name=chain)
+            # Add the parsed atom to the list and update the current atom index
+            parsed_atoms.append(parsed_atom)
+            atom_index += 1
+            # Check if we are in the same chain/residue than before
+            same_chain = parsed_chains and parsed_chains[-1] == parsed_chain
+            same_residue = same_chain and parsed_residues and parsed_residue.same_inputs_as(parsed_residues[-1])
+            # Update the residue atom indices
+            # If the residue equals the last parsed residue then use the previous instead
+            if same_residue:
+                parsed_residue = parsed_residues[-1]
                 parsed_residue.atom_indices.append(atom_index)
-                # If the chain equals the last parsed chain then use the previous instead
-                if same_chain:
-                    parsed_chain = parsed_chains[-1]
-                    parsed_chain.residue_indices.append(residue_index)
-                    continue
-                # Otherwise, include the new chain in the list
-                parsed_chains.append(parsed_chain)
+                # If it is the same residue then it will be the same chain as well so we can proceed
+                continue
+            # Otherwise, include the new residue in the list and update the current residue index
+            parsed_residues.append(parsed_residue)
+            residue_index += 1
+            parsed_residue.atom_indices.append(atom_index)
+            # If the chain equals the last parsed chain then use the previous instead
+            if same_chain:
+                parsed_chain = parsed_chains[-1]
                 parsed_chain.residue_indices.append(residue_index)
+                continue
+            # Otherwise, include the new chain in the list
+            parsed_chains.append(parsed_chain)
+            parsed_chain.residue_indices.append(residue_index)
         return cls(atoms=parsed_atoms, residues=parsed_residues, chains=parsed_chains)
+
+    # Set the structure from a pdb file
+    @classmethod
+    def from_pdb_file (cls, pdb_filename : str):
+        if not os.path.exists(pdb_filename):
+            raise SystemExit('File "' + pdb_filename + '" not found')
+        if not get_format(pdb_filename) == 'pdb':
+            raise SystemExit('"' + pdb_filename + '" is not a name for a pdb file')
+        # Read the pdb file
+        pdb_content = None
+        with open(pdb_filename, 'r') as file:
+            pdb_content = file.read()
+        return cls.from_pdb(pdb_content)
 
     # Fix atom elements by gueesing them when missing
     # Set all elements with the first letter upper and the second (if any) lower
@@ -936,7 +945,7 @@ class Structure:
         if not selection:
             selection = self.select_all()
         # Find covalent bonds between atoms
-        covalent_bonds = self.get_covalent_bonds(selection)
+        covalent_bonds = self.bonds
         atom_indexed_covalent_bonds = { atom_index: covalent_bonds[i] for i, atom_index in enumerate(selection.atom_indices) }
         # Group the connected atoms in "fragments"
         fragments = []
@@ -1114,7 +1123,7 @@ class Structure:
             print('WARNING: There are repeated residues (' + str(len(repeated_residues)) + ')')
             print('    e.g. ' + str(repeated_residues[0][0]))
         # Now for each repeated residue, find out which are splitted and which are duplicated
-        covalent_bonds = self.get_covalent_bonds()
+        covalent_bonds = self.bonds
         overall_splitted_residues = []
         overall_duplicated_residues = []
         for residues in repeated_residues:
@@ -1178,6 +1187,8 @@ class Structure:
                 # Also residue 'atom_indices' must be updated
                 for residue in self.residues:
                     residue._atom_indices = [ new_atom_indices.index(atom_index) for atom_index in residue._atom_indices ]
+                # Bonds must be reset since atom indices have changes
+                self._bonds = None
                 # Prepare the trajectory atom sorter which must be returned
                 # Include atom indices already so the user has to provide only the structure and trajectory filenames
                 def trajectory_atom_sorter (
