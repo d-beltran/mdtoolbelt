@@ -1272,7 +1272,7 @@ class Structure:
     # - oxygen must have 1 or 2 bonds
     # - nitrogen must have 1 - 4 bonds
     # - carbon must have 2 - 4 bonds
-    # - sulfur must have 2 - 6 bonds
+    # - sulfur must have 1 - 6 bonds
     # - phosphorus must have 2 - 6 bonds
     def check_incoherent_bonds (self) -> bool:
         for atom in self.atoms:
@@ -1290,8 +1290,8 @@ class Structure:
             if element == 'C' and (4 < nbonds or nbonds < 2):
                 print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-4 bonds')
                 return True
-            if element == 'S' and (6 < nbonds or nbonds < 2):
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-6 bonds')
+            if element == 'S' and (6 < nbonds or nbonds < 1):
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-6 bonds')
                 return True
             if element == 'P' and (6 < nbonds or nbonds < 2):
                 print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-6 bonds')
