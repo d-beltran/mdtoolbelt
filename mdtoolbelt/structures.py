@@ -24,6 +24,24 @@ except:
 available_caps = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
     'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
+# Set the expected number of bonds for each atom according to its element
+coherent_bonds_with_hydrogen = {
+    'H': { 'min': 1, 'max': 1 },
+    'O': { 'min': 1, 'max': 2 },
+    'N': { 'min': 1, 'max': 4 },
+    'C': { 'min': 2, 'max': 4 },
+    'S': { 'min': 1, 'max': 6 },
+    'P': { 'min': 2, 'max': 6 },
+}
+# WARNING: Not deeply tested
+coherent_bonds_without_hydrogen = {
+    'O': { 'min': 0, 'max': 2 },
+    'N': { 'min': 1, 'max': 3 },
+    'C': { 'min': 1, 'max': 3 },
+    'S': { 'min': 1, 'max': 4 },
+    'P': { 'min': 2, 'max': 4 },
+}
+
 # An atom
 class Atom:
     def __init__ (self,
@@ -1268,33 +1286,24 @@ class Structure:
 
     # Check bonds to be incoherent
     # i.e. check atoms not to have more or less bonds than expected according to their element
-    # - hydrogen must have 1 and only 1 bond
-    # - oxygen must have 1 or 2 bonds
-    # - nitrogen must have 1 - 4 bonds
-    # - carbon must have 2 - 4 bonds
-    # - sulfur must have 1 - 6 bonds
-    # - phosphorus must have 2 - 6 bonds
     def check_incoherent_bonds (self) -> bool:
+        # Find out if there are hydrogens in the structure
+        # It may happen that we encounter an structure without hydrogens
+        has_hydrogen = next(( True for atom in self.atoms if atom.element == 'H' ), False)
+        coherent_bonds = coherent_bonds_with_hydrogen if has_hydrogen else coherent_bonds_without_hydrogen
+        # Cechk coherent bonds atom by atom
         for atom in self.atoms:
+            # Get actual number of bonds in the current atom
             nbonds = len(atom.get_bonds())
+            # Get the accepted range of number of bonds for the current atom according to its element
             element = atom.element
-            if element == 'H' and nbonds != 1:
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1 bond')
-                return True
-            if element == 'O' and (2 < nbonds or nbonds < 1):
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-2 bonds')
-                return True
-            if element == 'N' and (4 < nbonds or nbonds < 1):
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-4 bonds')
-                return True
-            if element == 'C' and (4 < nbonds or nbonds < 2):
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-4 bonds')
-                return True
-            if element == 'S' and (6 < nbonds or nbonds < 1):
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 1-6 bonds')
-                return True
-            if element == 'P' and (6 < nbonds or nbonds < 2):
-                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have 2-6 bonds')
+            element_coherent_bonds = coherent_bonds.get(element, None)
+            # If there are no specficiations for the current atom element then skip it
+            if not element_coherent_bonds:
+                continue
+            # Check the actual number of bonds is insdie the accepted range
+            if nbonds < element_coherent_bonds['min'] or nbonds > element_coherent_bonds['max']:
+                print(' Atom ' + str(atom.index) + ' with element ' + element + ' has ' + str(nbonds) + ' bonds but it should have between ' + str(element_coherent_bonds['min']) + ' and ' + str(element_coherent_bonds['max']) + ' bonds')
                 return True
         return False
 
