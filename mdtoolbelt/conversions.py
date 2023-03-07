@@ -70,7 +70,7 @@ def convert (
     # Check the input files to exist
     input_files = [ input_structure_filename ] + input_trajectory_filenames
     for input_file in input_files:
-        if not os.path.exists(input_file):
+        if input_file and not os.path.exists(input_file):
             raise SystemExit('Missing input file ' + input_file)
 
     # Convert the structure
