@@ -344,6 +344,17 @@ class Residue:
         residue_copy._chain_index = self._chain_index
         return residue_copy
 
+    # Get the formula of the residue
+    def get_formula (self) -> str:
+        elements = [ atom.element for atom in self.atoms ]
+        unique_elements = list(set(elements))
+        formula = ''
+        for unique_element in unique_elements:
+            count = elements.count(unique_element)
+            number = get_lower_numbers(str(count)) if count > 1 else ''
+            formula += unique_element + number
+        return formula
+
 # A chain
 class Chain:
     def __init__ (self,
@@ -1425,3 +1436,19 @@ def otherwise (values : list) -> Generator[tuple, None, None]:
     for v, value in enumerate(values):
         others = values[0:v] + values[v+1:]
         yield value, others
+
+# Convert numbers to lower text characters (chr 8020-8029)
+lower_numbers = {
+    '0': '₀',
+    '1': '₁',
+    '2': '₂',
+    '3': '₃',
+    '4': '₄',
+    '5': '₅',
+    '6': '₆',
+    '7': '₇',
+    '8': '₈',
+    '9': '₉',
+}
+def get_lower_numbers (numbers_text : str) -> str:
+    return ''.join([ lower_numbers[c] for c in numbers_text ])
