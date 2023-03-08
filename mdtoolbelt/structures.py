@@ -344,6 +344,12 @@ class Residue:
         residue_copy._chain_index = self._chain_index
         return residue_copy
 
+    # Get the residue equivalent single letter code
+    # Note that this makes sense for aminoacids and nucleotides only
+    # Non recognized residue names return 'X'
+    def get_letter (self) -> str:
+        return residue_name_to_letter(self.name)
+
     # Get the formula of the residue
     def get_formula (self) -> str:
         elements = [ atom.element for atom in self.atoms ]
