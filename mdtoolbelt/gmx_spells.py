@@ -1,4 +1,5 @@
-import os
+from os import remove
+from os.path import exists
 from shutil import copyfile
 from subprocess import run, PIPE, Popen
 
@@ -40,7 +41,7 @@ def get_first_frame (input_structure_filename : str, input_trajectory_filename :
             "-quiet"
         ], stderr=PIPE).stderr.decode()
     # If output has not been generated then warn the user
-    if not os.path.exists(output_frame_filename):
+    if not exists(output_frame_filename):
         print(logs)
         raise SystemExit('Something went wrong with Gromacs')
 
@@ -133,7 +134,7 @@ def merge_and_convert_trajectories (input_trajectory_filenames : List[str], outp
             "-quiet"
         ], stderr=PIPE).stderr.decode()
         # If output has not been generated then warn the user
-        if not os.path.exists(single_trajectory_filename):
+        if not exists(single_trajectory_filename):
             print(logs)
             raise SystemExit('Something went wrong with Gromacs')
     else:
@@ -150,14 +151,14 @@ def merge_and_convert_trajectories (input_trajectory_filenames : List[str], outp
             "-quiet"
         ], stderr=PIPE).stderr.decode()
         # If output has not been generated then warn the user
-        if not os.path.exists(output_trajectory_filename):
+        if not exists(output_trajectory_filename):
             print(logs)
             raise SystemExit('Something went wrong with Gromacs')
     else:
         copyfile(single_trajectory_filename, output_trajectory_filename)
     # Remove residual files
-    if os.path.exists(auxiliar_single_trajectory_filename):
-        os.remove(auxiliar_single_trajectory_filename)
+    if exists(auxiliar_single_trajectory_filename):
+        remove(auxiliar_single_trajectory_filename)
 
 merge_and_convert_trajectories.format_sets = [
     {
@@ -192,7 +193,8 @@ def get_trajectory_subset (
     output_trajectory_filename : str,
     start : int = 0,
     end : int = None,
-    step : int = 1
+    step : int = 1,
+    skip : List[int] = []
 ):
     # We need an output trajectory filename
     if not output_trajectory_filename:
@@ -202,54 +204,12 @@ def get_trajectory_subset (
     if end != None and end < start:
         raise SystemExit('End frame must be posterior to start frame')
 
-    # Read the first frame of the trajectory and capture the time per frame from gromacs logs
-    residual_frame = '.trash.xtc'
-    p = Popen([
-        "echo",
-        "System",
-    ], stdout=PIPE)
-    process = run([
-        "gmx",
-        "trjconv",
-        "-f",
-        input_trajectory_filename,
-        "-o",
-        residual_frame,
-        "-dump",
-        "0",
-        "-quiet"
-    ], stdin=p.stdout, stdout=PIPE, stderr=PIPE)
-    output_logs = process.stdout.decode()
-    error_logs = process.stderr.decode()
-    p.stdout.close()
+    # Set a list with frame indices from
+    frames = [ frame for frame in range(start, end, step) if frame not in skip ]
 
-    # If the residual frame is not generated after running gromacs then it means something went wrong
-    if not os.path.exists(residual_frame):
-        print(output_logs)
-        print(error_logs)
-        raise SystemExit('Something went wrong with Gromacs (residual frame)')
-
-    # Remove the residual frame
-    os.remove(residual_frame)
-
-    # Mine frame times from the logs
-    trajectory_start_time = None
-    trajectory_first_frame_time = None
-    for line in error_logs.split('\n'):
-        if 'Reading frame       0' in line:
-            trajectory_start_time = float(line.strip().split()[-1])
-            continue
-        if 'Reading frame       1' in line:
-            trajectory_first_frame_time = float(line.strip().split()[-1])
-            break
-    frame_time = trajectory_first_frame_time - trajectory_start_time
-
-    # Convert requested frames to time
-    # We substract 1 from the end to make it coherent with python and other tool's logic
-    # i.e. last index is not included in the selection (gromacs would return the last frame also)
-    strat_time = trajectory_start_time + start * frame_time
-    end_time = trajectory_start_time + (end-1) * frame_time
-    step_time = step * frame_time
+    # Generate the ndx file to target the desired frames
+    auxiliar_ndx_filename = '.frames.ndx'
+    generate_frames_ndx(frames, auxiliar_ndx_filename)
 
     # Now run gromacs trjconv command in order to extract the desired frames
     p = Popen([
@@ -263,20 +223,19 @@ def get_trajectory_subset (
         input_trajectory_filename,
         "-o",
         output_trajectory_filename,
-        "-b",
-        str(strat_time),
-        "-e",
-        str(end_time),
-        "-dt",
-        str(step_time),
+        "-fr",
+        auxiliar_ndx_filename,
         "-quiet"
-    ], stdin=p.stdout, stderr=PIPE).stderr.decode()
+    ], stdin=p.stdout, stdout=PIPE).stdout.decode()
     p.stdout.close()
 
     # If output has not been generated then warn the user
-    if not os.path.exists(output_trajectory_filename):
+    if not exists(output_trajectory_filename):
         print(logs)
         raise SystemExit('Something went wrong with Gromacs (main conversion)')
+
+    # Cleanup the auxiliar ndx file
+    remove(auxiliar_ndx_filename)
 
 
 get_trajectory_subset.format_sets = [
@@ -294,8 +253,8 @@ get_trajectory_subset.format_sets = [
 # This is a minimal implementation of 'gmx trjcat' used in loops
 def merge_xtc_files (current_file : str, new_file : str):
     # If the current file does nt exist then set the new file as the current file
-    if not os.path.exists(current_file):
-        os.rename(new_file, current_file)
+    if not exists(current_file):
+        rename(new_file, current_file)
         return
     # Run trjcat
     logs = run([
@@ -311,3 +270,23 @@ def merge_xtc_files (current_file : str, new_file : str):
     stdout=PIPE,
     stderr=PIPE
     ).stdout.decode()
+
+# Generate a ndx file with a selection of frames
+def generate_frames_ndx (frames : List[int], filename : str):
+    # Add a header 
+    content = '[ frames ]\n'
+    count = 0
+    for frame in frames:
+        # Add a breakline each 15 indices
+        count += 1
+        if count == 15:
+            content += '\n'
+            count = 0
+        # Add a space between indices
+        # Atom indices go from 0 to n-1
+        # Add +1 to the index since gromacs counts from 1 to n
+        content += str(frame + 1) + ' '
+    content += '\n'
+    # Write the file
+    with open(filename, 'w') as file:
+        file.write(content)

@@ -1,4 +1,5 @@
 from inspect import getfullargspec
+from typing import List
 
 from .frame_counts import get_frames_count
 from .formats import get_format, get_format_set_suitable_function
@@ -15,11 +16,17 @@ def get_trajectory_subset (
     output_trajectory_filename : str,
     start : int = 0,
     end : int = None,
-    step : int = 1
+    step : int = 1,
+    skip : List[int] = [],
 ):
-    # If there is no end set then the end is the last frame of the simulation
+    # If there is no end set then the end as the last frame of the simulation
     if end == None:
         end = get_frames_count(input_structure_filename, input_trajectory_filename)
+
+    # How step and skip are combined is not intuitive and it could be missleading
+    # For this reason both arguments are not allowed together
+    if step and step != 1 and skip and len(skip) > 0:
+        raise SystemExit("Arguments 'step' and 'skip' are not allowed together. Please do it in 2 separated calls.")
 
     # Get the input formats
     input_structure_format = get_format(input_structure_filename)
@@ -47,6 +54,6 @@ def get_trajectory_subset (
     suitable_function_keywords = getfullargspec(suitable_function)[0]
     required_structure = 'input_structure_filename' in suitable_function_keywords
     if required_structure:
-        suitable_function(input_structure_filename, input_trajectory_filename, output_trajectory_filename, start, end, step)
+        suitable_function(input_structure_filename, input_trajectory_filename, output_trajectory_filename, start, end, step, skip)
     else:
-        suitable_function(input_trajectory_filename, output_trajectory_filename, start, end, step)
+        suitable_function(input_trajectory_filename, output_trajectory_filename, start, end, step, skip)

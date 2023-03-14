@@ -84,6 +84,9 @@ subset_parser.add_argument(
 subset_parser.add_argument(
     "-step", "--step", type=int, default=1,
     help="Frame step")
+subset_parser.add_argument(
+    "-skip", "--skip", nargs='*', type=int, default=[],
+    help="Frames to be skipped")
 
 # The nojump command
 nojump_parser = subparsers.add_parser("nojump",
@@ -176,7 +179,8 @@ def call():
             output_trajectory_filename=output_trajectory,
             start=args.start,
             end=args.end,
-            step=args.step
+            step=args.step,
+            skip=args.skip
         )
 
     if tool == 'nojump':

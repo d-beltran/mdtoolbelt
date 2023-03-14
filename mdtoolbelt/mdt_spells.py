@@ -187,9 +187,11 @@ def get_trajectory_subset (
         frame_count += 1
         raise SystemExit('The trajectory has ' + str(frame_count) + ' frames so we can not start at frame ' + str(start))
     # Get further chunks
-    relative_end = end - start if end != None else None
     for i, chunk in enumerate(trajectory, 1): # Start the count at 1
-        if i == relative_end:
+        frame = start + i
+        if frame in skip:
+            continue
+        if frame == end:
             break
         if i % step == 0:
             reduced_trajectory = mdt.join([reduced_trajectory, chunk], check_topology=False)
