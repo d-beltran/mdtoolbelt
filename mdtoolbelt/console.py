@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, RawTextHelpFormatter
 
 from .conversions import convert
+from .filters import filter_atoms
 from .subsets import get_trajectory_subset
 #from .vmd_spells import chainer
 from .mdt_spells import split_merged_trajectories
@@ -27,6 +28,28 @@ convert_parser.add_argument(
 convert_parser.add_argument(
     "-ot", "--output_trajectory",
     help="Path to output trajectory file")
+
+# The filter command
+filter_parser = subparsers.add_parser("filter",
+    help="Filter atoms in a structure and/or a trajectory\n")
+filter_parser.add_argument(
+    "-is", "--input_structure", required=True,
+    help="Path to input structure file")
+filter_parser.add_argument(
+    "-os", "--output_structure",
+    help="Path to output structure file")
+filter_parser.add_argument(
+    "-it", "--input_trajectory",
+    help="Path to input trajectory file")
+filter_parser.add_argument(
+    "-ot", "--output_trajectory",
+    help="Path to output trajectory file")
+filter_parser.add_argument(
+    "-sel", "--selection_string", required=True,
+    help="Atom selection formula")
+filter_parser.add_argument(
+    "-syn", "--selection_syntax", default='vmd',
+    help="Atom selection formula (vmd by default)")
 
 # The chainer command
 chainer_parser = subparsers.add_parser("chainer",
@@ -153,6 +176,18 @@ def call():
             output_structure_filename=args.output_structure,
             input_trajectory_filenames=args.input_trajectories,
             output_trajectory_filename=args.output_trajectory,
+        )
+
+    # In case the filter tool was called
+    if tool == 'filter':
+        # Run the convert command
+        filter_atoms(
+            input_structure_filename=args.input_structure,
+            output_structure_filename=args.output_structure,
+            input_trajectory_filename=args.input_trajectory,
+            output_trajectory_filename=args.output_trajectory,
+            selection_string=args.selection_string,
+            selection_syntax=args.selection_syntax
         )
 
     # In case the chainer tool was called

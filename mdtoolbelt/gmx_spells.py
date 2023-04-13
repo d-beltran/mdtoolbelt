@@ -249,6 +249,163 @@ get_trajectory_subset.format_sets = [
     }
 ]
 
+# Filter trajectory atoms
+def filter_structure (
+    input_structure_filename : str,
+    output_structure_filename : str,
+    input_selection : 'Selection'
+):
+    # Generate a ndx file with the desired selection
+    filter_selection_name = 'filter'
+    filter_index_content = input_selection.to_ndx(selection_name=filter_selection_name)
+    filter_index_filename = '.filter.ndx'
+    with open(filter_index_filename, 'w') as file:
+        file.write(filter_index_content)
+
+    # Filter the structure
+    p = Popen([
+        "echo",
+        filter_selection_name,
+    ], stdout=PIPE)
+    logs = run([
+        "gmx",
+        "editconf",
+        "-f",
+        input_structure_filename,
+        '-o',
+        output_structure_filename,
+        '-n',
+        filter_index_filename,
+        '-quiet'
+    ], stdin=p.stdout, stdout=PIPE).stdout.decode()
+    p.stdout.close()
+
+    # Check the output file exists at this point
+    # If not then it means something went wrong with gromacs
+    if not exists(output_structure_filename):
+        print(logs)
+        raise SystemExit('Something went wrong with Gromacs')
+
+    # Cleanup the index file
+    remove(filter_index_filename)
+
+filter_structure.format_sets = [
+    {
+        'inputs': {
+            'input_structure_filename': {'pdb', 'gro'},
+        },
+        'outputs': {
+            'output_structure_filename': {'pdb', 'gro'}
+        }
+    }
+]
+
+# Filter trajectory atoms
+def filter_trajectory (
+    input_structure_filename : str,
+    input_trajectory_filename : str,
+    output_trajectory_filename : str,
+    input_selection : 'Selection'
+):
+    # Generate a ndx file with the desired selection
+    filter_selection_name = 'filter'
+    filter_index_content = input_selection.to_ndx(selection_name=filter_selection_name)
+    filter_index_filename = '.filter.ndx'
+    with open(filter_index_filename, 'w') as file:
+        file.write(filter_index_content)
+
+    # Filter the trajectory
+    p = Popen([
+        "echo",
+        filter_selection_name,
+    ], stdout=PIPE)
+    logs = run([
+        "gmx",
+        "trjconv",
+        "-s",
+        input_structure_filename,
+        "-f",
+        input_trajectory_filename,
+        '-o',
+        output_trajectory_filename,
+        '-n',
+        filter_index_filename,
+        '-quiet'
+    ], stdin=p.stdout, stdout=PIPE).stdout.decode()
+    p.stdout.close()
+
+    # Check the output file exists at this point
+    # If not then it means something went wrong with gromacs
+    if not exists(output_trajectory_filename):
+        print(logs)
+        raise SystemExit('Something went wrong with Gromacs')
+
+    # Cleanup the index file
+    remove(filter_index_filename)
+
+filter_trajectory.format_sets = [
+    {
+        'inputs': {
+            'input_structure_filename': {'tpr', 'pdb', 'gro'},
+            'input_trajectory_filename': {'xtc', 'trr'}
+        },
+        'outputs': {
+            'output_trajectory_filename': {'xtc', 'trr'}
+        }
+    }
+]
+
+# Filter trajectory atoms
+def filter_tpr (
+    input_tpr_filename : str,
+    output_tpr_filename : str,
+    input_selection : 'Selection'
+):
+    # Generate a ndx file with the desired selection
+    filter_selection_name = 'filter'
+    filter_index_content = input_selection.to_ndx(selection_name=filter_selection_name)
+    filter_index_filename = '.filter.ndx'
+    with open(filter_index_filename, 'w') as file:
+        file.write(filter_index_content)
+
+    # Filter the tpr
+    p = Popen([
+        "echo",
+        filter_selection_name,
+    ], stdout=PIPE)
+    logs = run([
+        "gmx",
+        "convert-tpr",
+        "-f",
+        input_tpr_filename,
+        '-o',
+        output_tpr_filename,
+        '-n',
+        filter_index_filename,
+        '-quiet'
+    ], stdin=p.stdout, stdout=PIPE).stdout.decode()
+    p.stdout.close()
+
+    # Check the output file exists at this point
+    # If not then it means something went wrong with gromacs
+    if not exists(output_tpr_filename):
+        print(logs)
+        raise SystemExit('Something went wrong with Gromacs')
+
+    # Cleanup the index file
+    remove(filter_index_filename)
+
+filter_tpr.format_sets = [
+    {
+        'inputs': {
+            'input_tpr_filename': {'tpr'},
+        },
+        'outputs': {
+            'output_tpr_filename': {'tpr'}
+        }
+    }
+]
+
 # Join xtc files
 # This is a minimal implementation of 'gmx trjcat' used in loops
 def merge_xtc_files (current_file : str, new_file : str):
