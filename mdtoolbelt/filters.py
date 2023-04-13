@@ -15,11 +15,13 @@ def filter_atoms (
     output_structure_filename : str,
     output_trajectory_filename : str,
     selection_string : str,
-    selection_syntax : str
+    selection_syntax : str = 'vmd'
 ):  
 
     # Check formats are as expected
     # Check also input files exist
+    if not input_structure_filename:
+        raise SystemExit('Missing input structure filename')
     input_structure_format = get_format(input_structure_filename)
     if input_structure_format not in accepted_structure_formats:
         raise SystemExit('Not valid input structure format (' + input_structure_format + '). Accepted structure formats: ' + ','.join(accepted_structure_formats))
@@ -31,9 +33,10 @@ def filter_atoms (
             raise SystemExit('Not valid input trajectory format (' + input_trajectory_format + '). Accepted trajectory formats: ' + ','.join(accepted_trajectory_formats))
         if not exists(input_trajectory_filename):
             raise SystemExit('Missing input file ' + input_trajectory_filename)
-    output_structure_format = get_format(output_structure_filename)
-    if output_structure_format not in accepted_structure_formats:
-        raise SystemExit('Not valid output structure format (' + output_structure_format + '). Accepted structure formats: ' + ','.join(accepted_structure_formats))
+    if output_structure_filename:
+        output_structure_format = get_format(output_structure_filename)
+        if output_structure_format not in accepted_structure_formats:
+            raise SystemExit('Not valid output structure format (' + output_structure_format + '). Accepted structure formats: ' + ','.join(accepted_structure_formats))
     if output_trajectory_filename:
         output_trajectory_format = get_format(output_trajectory_filename)
         if output_trajectory_format not in accepted_trajectory_formats:
@@ -53,6 +56,7 @@ def filter_atoms (
         raise SystemExit('Selection ' + selection_string + ' is empty')
 
     # Run the filters
-    filter_structure(input_structure_filename, output_structure_filename, selection)
+    if output_structure_filename:
+        filter_structure(input_structure_filename, output_structure_filename, selection)
     if input_trajectory_filename and output_trajectory_filename:
         filter_trajectory(input_structure_filename, input_trajectory_filename, output_trajectory_filename, selection)
