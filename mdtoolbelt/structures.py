@@ -823,8 +823,7 @@ class Structure:
                 return None
             return Selection(atom_indices)
 
-        print('WARNING: Syntax ' + syntax + ' is not supported')
-        return None
+        raise SystemExit('Syntax ' + syntax + ' is not supported. Choose one of the following: vmd, prody, pytraj')
 
     # Set a function to make selections using atom indices
     def select_atom_indices (self, atom_indices : List[int]) -> 'Selection':

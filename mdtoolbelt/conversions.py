@@ -86,6 +86,7 @@ def convert (
         if input_structure_format == output_structure_format:
             copyfile(input_structure_filename, output_structure_filename)
             return
+        print('Getting structure in ' + output_structure_format + ' format from ' + input_structure_format + ' file')
         # Otherwise, we must convert
         # Choose the right conversion function according to input and output formats
         request_format_set = {
