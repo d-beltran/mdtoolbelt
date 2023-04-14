@@ -8,15 +8,29 @@ from os.path import exists
 from subprocess import run, PIPE, STDOUT, Popen
 from typing import Optional, List
 
-from .single_frame_getter import get_last_frame
 from .formats import get_format
 
 # Set the script filename with all commands to be passed to vmd
 commands_filename = '.commands.vmd'
 
 # List all the vmd supported trajectory formats
-vmd_supported_structure_formats = {'pdb', 'prmtop', 'psf', 'gro'} # DANI: Esto lo he hecho rápido, hay muchas más
+vmd_supported_structure_formats = {'pdb', 'prmtop', 'psf', 'parm', 'gro'} # DANI: Esto lo he hecho rápido, hay muchas más
 vmd_supported_trajectory_formats = {'mdcrd', 'crd', 'dcd', 'xtc', 'trr', 'nc'}
+
+# Set a vmd format translator
+vmd_format = {
+    'pdb': 'pdb',
+    'prmtop': 'prmtop',
+    'psf': 'pdf',
+    'gro': 'gro',
+    'crd': 'crd',
+    'mdcrd': 'crd',
+    'dcd': 'dcd',
+    'xtc': 'xtc',
+    'trr': 'trr',
+    'netcdf': 'netcdf',
+    'nc': 'netcdf',
+}
 
 # Given a vmd supported topology with no coordinates and a single frame file, generate a pdb file
 def vmd_to_pdb (
@@ -24,12 +38,14 @@ def vmd_to_pdb (
     input_trajectory_filename : str,
     output_structure_filename : str):
 
-    # DANI: Esto alomejor se podria substituit por un 'animate read' en los commands
-    # https://www.ks.uiuc.edu/Research/vmd/current/ug/node121.html
-    single_frame_filename = get_last_frame(input_structure_filename, input_trajectory_filename, vmd_supported_trajectory_formats)
+    # Get the trajectory format according to the vmd dictionary
+    trajectory_format = get_format(input_trajectory_filename)
+    vmd_trajectory_format = vmd_format[trajectory_format]
 
     # Prepare a script for VMD to run. This is Tcl language
     with open(commands_filename, "w") as file:
+        # Load only the first frame of the trajectory
+        file.write('animate read ' + vmd_trajectory_format + ' ' + input_trajectory_filename + ' end 1\n')
         # Select all atoms
         file.write('set all [atomselect top "all"]\n')
         # Write the current topology in 'pdb' format
@@ -41,7 +57,6 @@ def vmd_to_pdb (
     vmd_process = run([
         "vmd",
         input_structure_filename,
-        single_frame_filename,
         "-e",
         commands_filename,
         "-dispdev",
