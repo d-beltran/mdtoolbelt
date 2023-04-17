@@ -11,10 +11,10 @@ accepted_trajectory_formats = ['xtc', 'trr']
 # Note that this function is not format-smart
 def filter_atoms (
     input_structure_filename : str,
-    input_trajectory_filename : str,
-    output_structure_filename : str,
-    output_trajectory_filename : str,
-    selection_string : str,
+    input_trajectory_filename : str = '',
+    output_structure_filename : str = '',
+    output_trajectory_filename : str = '',
+    selection_string : str = '',
     selection_syntax : str = 'vmd'
 ):  
 
