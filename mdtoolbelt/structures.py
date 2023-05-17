@@ -1,6 +1,7 @@
 # Main handler of the toolbelt
 import os
 import math
+from scipy.special import comb # DANI: Substituye al math.comb porque fué añadido en python 3.8 y nosotros seguimos en 3.7
 from bisect import bisect
 from typing import Optional, Union, Tuple, List, Generator
 Coords = Tuple[float, float, float]
@@ -62,7 +63,12 @@ class Atom:
         return '<Atom ' + self.name + '>'
 
     def __eq__ (self, other):
+        if type(self) != type(other):
+            return False
         return self._residue_index == other._residue_index and self.name == other.name
+
+    def __hash__ (self):
+        return hash((self.index))
 
     # The parent structure (read only)
     # This value is set by the structure itself
@@ -134,10 +140,6 @@ class Atom:
         return self.structure.chains[self.chain_index]
     chain = property(get_chain, None, None, "The atom chain (read only)")
 
-    # Generate a selection for this atom
-    def get_selection (self) -> 'Selection':
-        return Selection([self.index])
-
     # Get indices of other atoms in the structure which are covalently bonded to this atom
     def get_bonds (self) -> Optional[ List[int] ]:
         if not self.structure:
@@ -146,6 +148,18 @@ class Atom:
             raise ValueError('The atom has not an index defined')
         return self.structure.bonds[self.index]
 
+    # Atoms indices of atoms in the structure which are covalently bonded to this atom
+    bonds = property(get_bonds, None, None, 'Atoms indices of atoms in the structure which are covalently bonded to this atom')
+
+    # Get bonded atoms
+    def get_bonded_atoms (self) -> Generator['Atom', None, None]:
+        for atom_index in self.bonds:
+            yield self.structure.atoms[atom_index]
+
+    # Generate a selection for this atom
+    def get_selection (self) -> 'Selection':
+        return Selection([self.index])
+
     # Make a copy of the current atom
     def copy (self) -> 'Atom':
         atom_copy = Atom(self.name, self.element, self.coords)
@@ -153,6 +167,49 @@ class Atom:
         atom_copy._index = self._index
         atom_copy._residue_index = self._residue_index
         return atom_copy
+
+    # Check if this atom meets specific criteria:
+    # 1 - it is a carbon
+    # 2 - it is connected only to other carbons and hydrogens
+    # 3 - it is connected to 1 or 2 carbons
+    def is_fatty_candidate (self) -> bool:
+        # Ignore non carbon atoms
+        if self.element != 'C':
+            return False
+        # Get bonded atom elements
+        bonded_atoms_elements = [ atom.element for atom in self.get_bonded_atoms() ]
+        # Check only carbon and hydrogen atoms to be bonded
+        if any((element != 'C' and element != 'H') for element in bonded_atoms_elements):
+            return False
+        # Check it is connected to 1 or 2 carbons
+        connected_carbons_count = bonded_atoms_elements.count('C')
+        if connected_carbons_count != 1 and connected_carbons_count != 2:
+            return False
+        return True
+
+    # Check if this atom meets specific criteria:
+    # 1 - it is a carbon
+    # 2 - it is connected only to other carbons, hydrogens or oxygens
+    # 3 - it is connected to 1 or 2 carbons
+    # 4 - It is connected to 1 oxygen
+    def is_carbohydrate_candidate (self) -> bool:
+        # Ignore non carbon atoms
+        if self.element != 'C':
+            return False
+        # Get bonded atom elements
+        bonded_atoms_elements = [ atom.element for atom in self.get_bonded_atoms() ]
+        # Check only carbon and hydrogen atoms to be bonded
+        if any((element != 'C' and element != 'H' and element != 'O') for element in bonded_atoms_elements):
+            return False
+        # Check it is connected to 1 or 2 carbons
+        connected_carbons_count = bonded_atoms_elements.count('C')
+        if connected_carbons_count != 1 and connected_carbons_count != 2:
+            return False
+        # Check it is connected to 1 oxygen
+        connected_oxygens_count = bonded_atoms_elements.count('O')
+        if connected_oxygens_count != 1:
+            return False
+        return True
 
 # A residue
 class Residue:
@@ -170,6 +227,7 @@ class Residue:
         self._index = None
         self._atom_indices = []
         self._chain_index = None
+        self._classification = None
 
     def __repr__ (self):
         return '<Residue ' + self.name + str(self.number) + (self.icode if self.icode else '') + '>'
@@ -331,6 +389,129 @@ class Residue:
         self.set_chain_index(new_chain_index)
     chain = property(get_chain, set_chain, None, "The residue chain")
 
+    # Get the reside biochemistry classification
+    # WARNING: Note that this logic will not work in a structure without hydrogens
+    # Available classifications:
+    # - protein
+    # - nucleic
+    # - carbohydrate
+    # - fatty
+    # - steroid
+    # - ion
+    # - solvent
+    # - other
+    def get_classification (self) -> str:
+        # Return the internal value, if any
+        if self._classification:
+            return self._classification
+        # If we dont have a value then we must classify the residue
+        # -------------------------------------------------------------------------------------------------------
+        # Ions are single atom residues
+        if len(self.atom_indices) == 1:
+            self._classification = 'ion'
+            return self._classification
+        # -------------------------------------------------------------------------------------------------------
+        # Solvent is water molecules
+        if len(self.atom_indices) == 3:
+            atom_elements = [ atom.element for atom in self.atoms ]
+            if atom_elements.count('H') == 2 and atom_elements.count('O') == 1:
+                self._classification = 'solvent'
+                return self._classification
+        # -------------------------------------------------------------------------------------------------------
+        # Protein definition according to vmd:
+        # a residue with atoms named C, N, CA, and O
+        atom_names = [ atom.name for atom in self.atoms ]
+        if all((name in atom_names) for name in ['C', 'N', 'CA', 'O']):
+            self._classification = 'protein'
+            return self._classification
+        # -------------------------------------------------------------------------------------------------------
+        # Nucleic acids definition according to vmd:
+        # a residue with atoms named P, O1P, O2P and either O3’, C3’, C4’, C5’, O5’ or O3*, C3*, C4*, C5*, O5*
+        if (all((name in atom_names) for name in ['P', 'OP1', 'OP2']) and
+        ( all((name in atom_names) for name in ["O3'", "C3'", "C4'", "C5'", "O5'"]) or
+        all((name in atom_names) for name in ["O3*", "C3*", "C4*", "C5*", "O5*"]))):
+            self._classification = 'nucleic'
+            return self._classification
+        # -------------------------------------------------------------------------------------------------------
+        # To define carbohydrates search for rings made of 1 oxygen and 'n' carbons
+        # WARNING: This logic may fail for some very specific molecules such as furine
+        # LIMITATION: This logic only aims for cyclical carbohydrates. The linear form of carbohydrates is not yet consider
+        rings = list(self.find_rings())
+        for ring in rings:
+            ring_elements = [ atom.element for atom in ring ]
+            # Check the ring has 1 oxygen
+            oxygen_count = ring_elements.count('O')
+            if oxygen_count != 1:
+                continue
+            # Check the rest are only carbon
+            carbon_count = ring_elements.count('C')
+            if carbon_count != len(ring) - 1:
+                continue
+            self._classification = 'carbohydrate'
+            return self._classification
+        # -------------------------------------------------------------------------------------------------------
+        # To define steroids search for 3 6-carbon rings and 1 5-carbon ring (at least)
+        # WARNING: According to this logic some exotical non-steroid molecules may result in false positives
+        num_6_carbon_rings = 0
+        num_5_carbon_rings = 0
+        for ring in rings:
+            ring_elements = [ atom.element for atom in ring ]
+            if any(element != 'C' for element in ring_elements):
+                continue
+            ring_lenght = len(ring)
+            if ring_lenght == 5:
+                num_5_carbon_rings += 1
+            if ring_lenght == 6:
+                num_6_carbon_rings += 1
+        if num_6_carbon_rings >= 3 and num_5_carbon_rings >= 1:
+            self._classification = 'steroid'
+            return self._classification
+        # -------------------------------------------------------------------------------------------------------
+        # To define fatty acids search for a series of carbon atoms connected together (3 at least)
+        # These carbon atoms must be connected only to hydrogen in addition to 1-2 carbon
+        # These carbons must not be bonded in a cycle so check atoms not be repeated in the series
+        bonded_fatty_atoms = []
+        def get_bonded_fatty_atoms_recuersive (current_atom : Atom, previous_atom : Optional[Atom] = None) -> bool:
+            # Iterate over the input atom bonded atoms
+            for bonded_atom in current_atom.get_bonded_atoms():
+                # Discard the previous atom to avoid an infinite loop
+                if bonded_atom == previous_atom:
+                    continue
+                # If we find an atom which is already in the fatty atoms list then it means we are cycling
+                if bonded_atom in bonded_fatty_atoms:
+                    return False
+                # If this is not a fatty atom then discard it
+                if not bonded_atom.is_fatty_candidate():
+                    continue
+                # Add the current bonded fatty atom to the list
+                bonded_fatty_atoms.append(bonded_atom)
+                # Find more bonded fatty atoms and add them to list as well
+                if get_bonded_fatty_atoms_recuersive(current_atom=bonded_atom, previous_atom=current_atom) == False:
+                    return False
+            return True
+        # Now check all atoms and try to set the series until we find one which works
+        already_checked_atoms = []
+        for atom in self.atoms:
+            # If we already checked this atom trough the recursive logic then skip it
+            if atom in already_checked_atoms:
+                continue
+            # If the atom is not a fatty candidate then skip it
+            if not atom.is_fatty_candidate():
+                continue
+            # Now that we have found a suitable candidate atom we start the series
+            bonded_fatty_atoms = [atom]
+            if get_bonded_fatty_atoms_recuersive(atom) and len(bonded_fatty_atoms) >= 3:
+                self._classification = 'fatty'
+                return self._classification
+            already_checked_atoms += bonded_fatty_atoms
+        # -------------------------------------------------------------------------------------------------------
+        self._classification = 'other'
+        return self._classification
+
+
+    # The reside biochemistry classification (read only)
+    classification = property(get_classification, None, None)
+
     # Generate a selection for this residue
     def get_selection (self) -> 'Selection':
         return Selection(self.atom_indices)
@@ -360,6 +541,10 @@ class Residue:
             number = get_lower_numbers(str(count)) if count > 1 else ''
             formula += unique_element + number
         return formula
+
+    # Find rings in the residue
+    def find_rings (self) -> Generator[ List[Atom], None, None ]:
+        return self.structure.find_rings(selection=self.get_selection())
 
 # A chain
 class Chain:
@@ -508,6 +693,8 @@ class Structure:
         # --- Set other internal variables ---
         # Set bonds between atoms
         self._bonds = None
+        # Set fragments of bonded atoms
+        self._fragments = None
         # --- Set other auxiliar variables ---
         # Trajectory atom sorter is a function used to sort coordinates in a trajectory file
         # This function is generated when sorting indices in the structure
@@ -518,7 +705,7 @@ class Structure:
     def __repr__ (self):
         return '<Structure (' + str(len(self.atoms)) + ' atoms)>'
 
-    # The bonds between atoms (read only)
+    # The bonds between atoms
     def get_bonds (self) -> List[ List[int] ]:
         # Return the stored value, if exists
         if self._bonds:
@@ -529,7 +716,65 @@ class Structure:
     # Force specific bonds
     def set_bonds (self, bonds : List[ List[int] ]):
         self._bonds = bonds
-    bonds = property(get_bonds, set_bonds, None, "The structure bonds (read only)")
+        # Reset fragments
+        self._fragments = None
+    bonds = property(get_bonds, set_bonds, None, "The structure bonds")
+
+    # Get the groups of atoms which are covalently bonded
+    def get_fragments (self) -> List[ List[int] ]:
+        # Return the stored value, if exists
+        if self._fragments != None:
+            return self._fragments
+        # Otherwise, find fragments in all structure atoms
+        self._fragments = list(self.find_fragments())
+        return self._fragments
+    # Fragments of covalently bonded atoms (read only)
+    fragments = property(get_fragments, None, None, "The structure fragments (read only)")
+
+    # Find fragments* in a selection of atoms
+    # * A fragment is a group of colvalently bond atoms
+    # A list of fragments is returned, where every fragment is a list of atom indices
+    # All atoms are searched if no selection is provided
+    # WARNING: Note that fragments generated from a specific selection may not match the structure fragments
+    # A selection including 2 separated regions of a structure fragment will yield 2 fragments
+    def find_fragments (self, selection : Optional['Selection'] = None) -> Generator[List[int], None, None]:
+        # If there is no selection we consider all atoms
+        if not selection:
+            selection = self.select_all()
+        # Get/Find covalent bonds between atoms
+        covalent_bonds = self.bonds
+        # for a, bonds in enumerate(covalent_bonds):
+        #     print(str(a) + ' -> ' + str(bonds))
+        # Duplicate each bonds list to avoid further corruption (deletion)
+        #print(selection.atom_indices)
+        atom_indexed_covalent_bonds = { atom_index: [ *covalent_bonds[i] ] for i, atom_index in enumerate(selection.atom_indices) }
+        # Group the connected atoms in "fragments"
+        while len(atom_indexed_covalent_bonds) > 0:
+            start_atom_index, bonds = next(iter(atom_indexed_covalent_bonds.items()))
+            del atom_indexed_covalent_bonds[start_atom_index]
+            fragment_atom_indices = [ start_atom_index ]
+            while len(bonds) > 0:
+                # Get the next bond atom and remove it from the bonds list
+                next_atom_index = bonds[0]
+                bonds.remove(next_atom_index)
+                next_bonds = atom_indexed_covalent_bonds.get(next_atom_index, None)
+                # If this atom is out of the selection then skip it
+                if next_bonds == None:
+                    continue
+                next_new_bonds = [ bond for bond in next_bonds if bond not in fragment_atom_indices + bonds ]
+                bonds += next_new_bonds
+                fragment_atom_indices.append(next_atom_index)
+                del atom_indexed_covalent_bonds[next_atom_index]
+            yield fragment_atom_indices
+
+    # Given a selection of atoms, find all whole structure fragments on them
+    def find_whole_fragments (self, selection : 'Selection') -> Generator[List[int], None, None]:
+        selection_set = set(selection.atom_indices)
+        for fragment in self.fragments:
+            fragment_set = set(fragment)
+            if fragment_set.intersection(selection_set):
+                yield fragment
+
 
     # Set a new atom in the structure
     def set_new_atom (self, atom : 'Atom'):
@@ -846,7 +1091,10 @@ class Structure:
 
     # Invert a selection
     def invert_selection (self, selection : 'Selection') -> 'Selection':
-        return Selection([ atom_index for atom_index in range(len(self.atoms)) if atom_index not in selection.atom_indices ])
+        atom_indices = list(range(len(self.atoms)))
+        for atom_index in selection.atom_indices:
+            atom_indices[atom_index] = None
+        return Selection([ atom_index for atom_index in atom_indices if atom_index != None ])
     
     # Given a selection, get a list of residue indices for residues implicated
     # Note that if a single atom from the residue is in the selection then the residue index is returned
@@ -854,9 +1102,12 @@ class Structure:
         return list(set([ self.atoms[atom_index].residue_index for atom_index in selection.atom_indices ]))
 
     # Create a new structure from the current using a selection to filter atoms
-    def filter (self, selection : 'Selection') -> 'Structure':
+    def filter (self, selection : Union['Selection', str], selection_syntax : str = 'vmd') -> 'Structure':
         if not selection:
             raise SystemExit('No selection was passed')
+        # In case the selection is not an actual Selection, but a string, parse the string into a Selection
+        if type(selection) == str:
+            selection = self.select(selection, selection_syntax)
         new_atoms = []
         new_residues = []
         new_chains = []
@@ -935,22 +1186,67 @@ class Structure:
     # Set chains on demand
     # If no selection is passed then the whole structure will be affected
     # If no chain is passed then a "chain by fragment" logic will be applied
-    def chainer (self, selection : Optional['Selection'] = None, letter : Optional[str] = None):
+    def chainer (self, selection : Optional['Selection'] = None, letter : Optional[str] = None, whole_fragments : bool = True):
         # If there is no selection we consider all atoms
-        if not selection:
+        if selection == None:
             selection = self.select_all()
+        # If the selection is empty then there is nothing to do here
+        if len(selection) == 0:
+            return
         # If a letter is specified then the logic is way simpler
         if letter:
             self.set_selection_chain_name(selection, letter)
             return
         # If a letter is not specified we run the "fragments" logic
-        fragments = self.find_fragments(selection)
-        for fragment in fragments:
+        fragment_getter = self.find_whole_fragments if whole_fragments else self.find_fragments
+        for fragment in fragment_getter(selection):
             chain_name = self.get_next_available_chain_name()
             if not chain_name:
                 raise SystemExit('ERROR: There are more chains than letters in the alphabet')
             fragment_selection = Selection(fragment)
             self.set_selection_chain_name(fragment_selection, chain_name)
+
+    # Smart function to set chains automatically
+    # Original chains will be overwritten
+    def auto_chainer (self):
+        # Reset chains
+        self.chainer(letter='X')
+        # Set solvent and ions as a unique chain
+        ion_residue_indices = [ residue.index for residue in self.residues if residue.classification == 'ion' ]
+        ion_selection = self.select_residue_indices(ion_residue_indices)
+        solvent_residue_indices = [ residue.index for residue in self.residues if residue.classification == 'solvent' ]
+        solvent_selection = self.select_residue_indices(solvent_residue_indices)
+        ion_and_indices_selection = ion_selection + solvent_selection
+        self.chainer(selection=ion_and_indices_selection, letter='S')
+        # Set fatty acids and steroids as a unique chain
+        # DANI: Se podrían incluir algunos carbohydrates (glycans)
+        # DANI: Se podrían descartarían residuos que no pertenezcan a la membrana por proximidad
+        fatty_residue_indices = [ residue.index for residue in self.residues if residue.classification == 'fatty' ]
+        fatty_selection = self.select_residue_indices(fatty_residue_indices)
+        steroid_residue_indices = [ residue.index for residue in self.residues if residue.classification == 'steroid' ]
+        steroid_selection = self.select_residue_indices(steroid_residue_indices)
+        membrane_selection = fatty_selection + steroid_selection
+        self.chainer(selection=membrane_selection, letter='M')
+        # Set carbohydrates as a unique chain as well, just in case we have glycans
+        # Note that in case glycan atoms are mixed with protein atoms glycan chains will be overwritten
+        # However this is not a problem. It is indeed the best solution if we don't want ro resort atoms
+        carbohydrate_residue_indices = [ residue.index for residue in self.residues if residue.classification == 'carbohydrate' ]
+        carbohydrate_selection = self.select_residue_indices(carbohydrate_residue_indices)
+        self.chainer(selection=carbohydrate_selection, letter='H')
+        # Add a chain per fragment for both protein and nucleic acids
+        protein_residue_indices = [ residue.index for residue in self.residues if residue.classification == 'protein' ]
+        protein_selection = self.select_residue_indices(protein_residue_indices)
+        nucleic_residue_indices = [ residue.index for residue in self.residues if residue.classification == 'nucleic' ]
+        nucleic_selection = self.select_residue_indices(nucleic_residue_indices)
+        protein_and_nucleic_selection = protein_selection + nucleic_selection
+        self.chainer(selection=protein_and_nucleic_selection)
+        # At this point we should have covered most of the molecules in the structure
+        # However, in case there are more molecules, we have already set them all as a single chain ('X')
+        # Here we do not apply the chain per fragment logic since it may be dangerous
+        # Note that we may have a lot of independent residues (and thus a los of small fragments)
+        # This would make us run out of letters in the alphabet and thus there would be no more chains
+        # As the last step, fix repeated chains
+        self.check_repeated_chains(fix_chains=True)
 
     # This is an alternative system to find protein chains (anything else is chained as 'X')
     # This system does not depend on VMD
@@ -969,39 +1265,6 @@ class Structure:
                 current_chain = self.get_next_available_chain_name()
             residue.set_chain(current_chain)
             previous_alpha_carbon = alpha_carbon
-
-    # Find fragments* in a selection of atoms
-    # * A fragment is a group of colvalently bond atoms
-    # A list of fragments is returned, where every fragment is a list of atom indices
-    # All atoms are searched if no selection is provided
-    def find_fragments (self, selection : Optional['Selection'] = None) -> List[ List[int] ]:
-        # If there is no selection we consider all atoms
-        if not selection:
-            selection = self.select_all()
-        # Get/Find covalent bonds between atoms
-        covalent_bonds = self.bonds
-        # Duplicate each bonds list to avoid further corruption (deletion)
-        atom_indexed_covalent_bonds = { atom_index: [ *covalent_bonds[i] ] for i, atom_index in enumerate(selection.atom_indices) }
-        # Group the connected atoms in "fragments"
-        fragments = []
-        while len(atom_indexed_covalent_bonds.keys()) > 0:
-            start_atom_index, bonds = list(atom_indexed_covalent_bonds.items())[0]
-            del atom_indexed_covalent_bonds[start_atom_index]
-            fragment_atom_indices = [ start_atom_index ]
-            while len(bonds) > 0:
-                next_atom_index = bonds[0]
-                next_bonds = atom_indexed_covalent_bonds.get(next_atom_index, None)
-                # If this atom is out of the selection then skip it
-                if not(next_bonds):
-                    bonds.remove(next_atom_index)
-                    continue
-                next_new_bonds = [ bond for bond in next_bonds if bond not in fragment_atom_indices + bonds ]
-                bonds += next_new_bonds
-                fragment_atom_indices.append(next_atom_index)
-                bonds.remove(next_atom_index)
-                del atom_indexed_covalent_bonds[next_atom_index]
-            fragments.append(fragment_atom_indices)
-        return fragments
 
     # Given an atom selection, set the chain for all these atoms
     # Note that the chain is changed in every whole residue, no matter if only one atom was selected
@@ -1045,12 +1308,16 @@ class Structure:
     # This means we have a duplicated/splitted chain
     # Repeated chains are usual and they are usually supported but with some problems
     # Also, repeated chains ususally come with repeated residues, which means more problems (see explanation below)
-    
-    # Check repeated chains
-    # Rename repeated chains if the fix_chains argument is True
-    # WARNING: The fix is possible only if there are less chains than the number of letters in the alphabet
+
+    # In the conext of this structure class we may have 2 different problems with a different solution each:
+    # 1 - There is more than one chain with the same letter (repeated chain) -> rename the duplicated chains
+    # 2 - There is a chain with atom indices which are not consecutive (splitted chain) -> create new chains
+
+    # Rename repeated chains or create new chains if the fix_chains argument is True
+    # WARNING: These fixes are possible only if there are less chains than the number of letters in the alphabet
     # Although there is no limitation in this code for chain names, setting long chain names is not compatible with pdb format
-    # Return True if there were any repeats
+    
+    # Check repeated chains and return True if there were any repeats
     def check_repeated_chains (self, fix_chains : bool = False, display_summary : bool = False) -> bool:
         # Order chains according to their names
         # Save also those chains which have a previous duplicate
@@ -1085,6 +1352,37 @@ class Structure:
                     last_chain_letter = get_next_letter(last_chain_letter)
                 repeated_chain.name = last_chain_letter
                 current_letters.append(last_chain_letter)
+        # Check if there are splitted chains
+        for chain in self.chains:
+            residue_indices = sorted(chain.residue_indices)
+            # Check if residue indices are consecutive
+            if residue_indices[-1] - residue_indices[0] + 1 == len(residue_indices):
+                continue
+            print('WARNING: splitted chain ' + chain.name)
+            # DANI: Esto no se ha provado que funcione
+            # If indices are not consecutive then we must find ranges of consecutive residues and create new chains for them
+            previous_residue_index = residue_indices[0]
+            consecutive_residues = [previous_residue_index]
+            overall_consecutive_residues = []
+            for residue_index in residue_indices[1:]:
+                # If next residue is consecutive
+                if residue_index == previous_residue_index + 1:
+                    consecutive_residues.append(residue_index)
+                # If next residue is NOT consecutive
+                else:
+                    overall_consecutive_residues.append(consecutive_residues)
+                    consecutive_residues = [residue_index]
+                # Update the previous index
+                previous_residue_index = residue_index
+            # Now create new chains and reasing residues
+            # Skip the first set of consecutive residues since they will stay in the original chain
+            for residues_indices in overall_consecutive_residues[1:]:
+                chain_name = self.get_next_available_chain_name()
+                if not chain_name:
+                    raise SystemExit('ERROR: There are more chains than letters in the alphabet')
+                residues_selection = self.select_residue_indices(residues_indices)
+                self.set_selection_chain_name(residues_selection, chain_name)
+
         # Fix repeated chains if requested
         return len(repeated_chains) > 0
 
@@ -1097,8 +1395,9 @@ class Structure:
     # These tools consider all atoms with the same 'record' as the same residue
     # However, there are other tools which would consider the splitted residue as two different resdiues
     # This causes inconsistency along different tools besides a long list of problems
-    # This situation has no easy fix since we can not change the order in atoms because trajectory data depends on it
-    # DANI: Habrá que hacer una función para reordenar átomos en la estructura a la vez que en una trayectoria
+    # The only possible is fix is changing the order of atoms in the topology
+    # Note that this is a breaking change for associated trajectories, which must change the order of coordinates
+    # However here we provide tools to fix associates trajectories as well
 
     # Duplicated residues are usual and they are usually supported but with some problems
     # For example, pytraj analysis outputs use to sort results by residues and each residue is tagged
@@ -1373,6 +1672,70 @@ class Structure:
         merged_residues = self_residue_copies + other_residue_copies
         merged_chains = self_chain_copies + other_chain_copies
         return Structure(merged_atoms, merged_residues, merged_chains)
+
+    # Find rings in the structure and yield them as they are found
+    # LIMITATION: Wrong rings may be found including smaller rings
+    # LIMITATION: Use this function to see if a specific ring exists, but not to count rings
+    def find_rings (self, selection : Optional[Selection] = None) -> Generator[ List[Atom], None, None ]:
+        selected_atom_indices = selection.atom_indices if selection else None
+        # We will use a logic which finds long paths of bonded heavy atoms
+        # These paths have no 'branches' and thus, when there are 2 possible paths then both paths are explored independently
+        # Save already searched atoms and the number of times it has been explored already
+        # Note that atoms may be visited as many times as their number of heavy atom bonds -1
+        already_searched_atoms = {}
+        def find_rings_recursive (atom_path : List[Atom]) -> Generator[ List[Atom], None, None ]:
+            # Get the current atom to continue the followup: the last atom
+            current_atom = atom_path[-1] # Note that the list MUST always have at least 1 atom
+            # Get bonded atoms to continue the path
+            followup_atoms = list(current_atom.get_bonded_atoms())
+            # Hydrogens are discarded since they have only 1 bond and thus they can only lead to a dead end
+            followup_atoms = [ atom for atom in followup_atoms if atom.element != 'H' ]
+            # In case there is a selection, check followup atoms not to be in the selection
+            if selected_atom_indices:
+                followup_atoms = [ atom for atom in followup_atoms if atom.index in selected_atom_indices ]
+            # Check if this atom has been visited already too many times and, if so, stop here
+            # Allowed search times is the posible number of rings where this atom can belong
+            allowed_search_times = comb(len(followup_atoms), 2)
+            already_search_times = already_searched_atoms.get(current_atom, 0)
+            if already_search_times == allowed_search_times:
+                return
+            already_searched_atoms[current_atom] = already_search_times + 1
+            # Remove the previous atom to avoid going back
+            previous_atom = atom_path[-2] if len(atom_path) > 1 else None
+            if previous_atom:
+                followup_atoms.remove(previous_atom)
+            # Iterate over the following bonded atoms
+            for followup_atom in followup_atoms:
+                # Check if the followup atom is in the path
+                path_index = next(( index for index, atom in enumerate(atom_path) if atom == followup_atom ), None)
+                # If so, we have found a ring
+                if path_index != None:
+                    ring = atom_path[path_index:]
+                    yield ring
+                    continue
+                # Otherwise, keep searching
+                new_path = atom_path + [followup_atom]
+                for ring in find_rings_recursive(atom_path=new_path):
+                    yield ring
+        # Find a starting atom and run the recursive logic
+        candidate_atom_indices = selected_atom_indices if selected_atom_indices else range(len(self.atoms))
+        for candidate_atom_index in candidate_atom_indices:
+            candidate_atom = self.atoms[candidate_atom_index]
+            # It must be heavy atom
+            if candidate_atom.element == 'H':
+                continue
+            # It must not be a dead end already
+            bonded_atoms = list(candidate_atom.get_bonded_atoms())
+            bonded_atoms = [ atom for atom in bonded_atoms if atom.element != 'H' ]
+            # In case there is a selection, check followup atoms not to be in the selection
+            if selected_atom_indices:
+                bonded_atoms = [ atom for atom in bonded_atoms if atom.index in selected_atom_indices ]
+            # Check this atom is not a dead end already
+            allowed_search_times = comb(len(bonded_atoms), 2)
+            if allowed_search_times < 1:
+                continue
+            for ring in find_rings_recursive(atom_path=[candidate_atom]):
+                yield ring
             
 
 ### Related functions ###

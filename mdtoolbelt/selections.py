@@ -12,6 +12,12 @@ class Selection:
     def __len__ (self):
         return len(self.atom_indices)
 
+    def __bool__ (self):
+        return len(self.atom_indices) > 0
+
+    def __add__ (self, other):
+        return self.merge(other)
+
     @classmethod
     def from_prody (cls, prody_selection):
         indexes = [ atom.getIndex() for atom in prody_selection.iterAtoms() ]
@@ -20,7 +26,8 @@ class Selection:
     def merge (self, other : Optional['Selection']) -> 'Selection':
         if not other:
             return self
-        return Selection(self.atom_indices + other.atom_indices)
+        unique_atom_indices = list(set( self.atom_indices + other.atom_indices ))
+        return Selection(unique_atom_indices)
 
     def to_prody (self) -> str:
         return 'index ' + ' '.join([ str(index) for index in self.atom_indices ])
