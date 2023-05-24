@@ -1,4 +1,4 @@
-from os import remove
+from os import remove, rename
 from os.path import exists
 from shutil import copyfile
 from subprocess import run, PIPE, Popen
