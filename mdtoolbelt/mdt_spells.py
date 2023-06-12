@@ -159,8 +159,10 @@ def get_trajectory_subset (
     output_trajectory_filename : str,
     start : int = 0,
     end : int = None,
-    step : int = 1
+    step : int = 1,
+    skip : List[int] = [],
 ):
+    print('dilo')
     # We need an output trajectory filename
     if not output_trajectory_filename:
         raise SystemExit('Missing output trajectory filename')
@@ -204,8 +206,14 @@ def get_trajectory_subset (
 
     # This is necessary sometimes to avoid the following error:
     #     ValueError: Only rectilinear boxes can be saved to mdcrd files
-    reduced_trajectory.unitcell_lengths = [0,0,0]
-    reduced_trajectory.unitcell_angles = [90,90,90]
+    # DANI: Esto suele funcionar, aunque a veces mata el proceso
+    # e.g. ValueError: unitcell_lengths must be shape (5, 3). You supplied  (1, 3)
+    # Este ejemplo fue observado con las trayectorias raw de 'NAFlex_1d11'
+    # mdtb subset -is structure.stripped.pdb -it structure.stripped.mdcrd -ot test.mdcrd -start 2 -end 17 -step 3
+    # DANI: Va bien que esto esté desactivado, así cuando falle podré compartir la trayectoria que da problemas a los de mdtraj:
+    # https://github.com/mdtraj/mdtraj/issues/1730
+    #reduced_trajectory.unitcell_lengths = [0,0,0]
+    #reduced_trajectory.unitcell_angles = [90,90,90]
 
     # Write reduced trajectory to output file
     reduced_trajectory.save(output_trajectory_filename)
