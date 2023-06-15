@@ -18,16 +18,27 @@ class Selection:
     def __add__ (self, other):
         return self.merge(other)
 
+    def __sub__ (self, other):
+        return self.substract(other)
+
     @classmethod
     def from_prody (cls, prody_selection):
         indexes = [ atom.getIndex() for atom in prody_selection.iterAtoms() ]
         return cls(indexes)
 
+    # Return a new selection made of self and other selection atom indices
     def merge (self, other : Optional['Selection']) -> 'Selection':
         if not other:
             return self
         unique_atom_indices = list(set( self.atom_indices + other.atom_indices ))
         return Selection(unique_atom_indices)
+
+    # Return a new selection made of self and not other selection atom indices 
+    def substract (self, other : Optional['Selection']) -> 'Selection':
+        if not other:
+            return self
+        remaining_atom_indices = [ atom_index for atom_index in self.atom_indices if atom_index not in other.atom_indices ]
+        return Selection(remaining_atom_indices)
 
     def to_prody (self) -> str:
         return 'index ' + ' '.join([ str(index) for index in self.atom_indices ])
