@@ -41,19 +41,30 @@ def filter_atoms (
         output_trajectory_format = get_format(output_trajectory_filename)
         if output_trajectory_format not in accepted_trajectory_formats:
             raise SystemExit('Not valid output trajectory format (' + output_trajectory_format + '). Accepted trajectory formats: ' + ','.join(accepted_trajectory_formats))
+    if not output_structure_filename and not output_trajectory_filename:
+        raise SystemExit('Missing output')
     # Check we are not missing additional inputs
     if not selection_string:
-        raise SystemExit('Missing input selection string')
-    if not selection_syntax:
+        print('Missing input selection string -> Water and counter ions will be filtered')
+    elif not selection_syntax:
         raise SystemExit('Missing input selection syntax')
 
     # Parse the selection
     structure = Structure.from_pdb_file(input_structure_filename)
-    selection = structure.select(selection_string, syntax=selection_syntax)
-
-    # If the selection is empty then war the user
-    if not selection:
-        raise SystemExit('Selection ' + selection_string + ' is empty')
+    if selection_string:
+        selection = structure.select(selection_string, syntax=selection_syntax)
+        # If the selection is empty then war the user
+        if not selection:
+            raise SystemExit('Selection ' + selection_string + ' is empty')
+    else:
+        # If the selection is missing then filter out water and ions by default
+        water_selection = structure.select_water()
+        counter_ions_selection = structure.select_counter_ions()
+        filter_selection = water_selection + counter_ions_selection
+        selection = structure.invert_selection(filter_selection)
+        # If the selection is empty then war the user
+        if not selection:
+            raise SystemExit('There are no water or counter ions')
 
     # Run the filters
     if output_structure_filename:

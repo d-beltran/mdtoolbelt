@@ -43,6 +43,10 @@ coherent_bonds_without_hydrogen = {
     'P': { 'min': 2, 'max': 4 },
 }
 
+# Set typical residue names to guess what residues are
+standard_water_residue_names = {'SOL', 'WAT', 'HOH', 'TIP'}
+standard_counter_ion_atom_names = {'K', 'NA', 'CL', 'CLA', 'SOD', 'POT'}
+
 # An atom
 class Atom:
     def __init__ (self,
@@ -1081,13 +1085,38 @@ class Structure:
 
     # Set a function to make selections using residue indices
     def select_residue_indices (self, residue_indices : List[int]) -> 'Selection':
-        atom_indices = sum([ self.residues[index].atom_indices for index in residue_indices ], [])
+        # WARNING: The following line gets stucked sometimes, idk why
+        #atom_indices = sum([ self.residues[index].atom_indices for index in residue_indices ], [])
+        atom_indices = []
+        for i, index in enumerate(residue_indices):
+            atom_indices += self.residues[index].atom_indices
         return Selection(atom_indices)
 
     # Get a selection with all atoms
     def select_all (self) -> 'Selection':
         atom_count = len(self.atoms)
         return Selection(list(range(atom_count)))
+
+    # Select water atoms
+    # WARNING: This logic is a bit guessy and it may fail for non-standard residue named structures
+    def select_water (self) -> 'Selection':
+        water_residues_indices = [ residue.index for residue in self.residues if residue.name in standard_water_residue_names ]
+        return self.select_residue_indices(water_residues_indices)
+
+    # Select counter ion atoms
+    # WARNING: This logic is a bit guessy and it may fail for non-standard atom named structures
+    def select_counter_ions (self) -> 'Selection':
+        counter_ion_indices = []
+        for atom in self.atoms:
+            # If the residue has not one single atom then it is not an ion
+            if len(atom.residue.atoms) != 1:
+                continue
+            # Get a simplified version of the atom name
+            # Set all letters upper and remove non-letter characters (e.g. '+' and '-' symbols)
+            simple_atom_name = ''.join(filter(str.isalpha, atom.name.upper()))
+            if simple_atom_name in standard_counter_ion_atom_names:
+                counter_ion_indices.append(atom.index)
+        return Selection(counter_ion_indices)
 
     # Invert a selection
     def invert_selection (self, selection : 'Selection') -> 'Selection':

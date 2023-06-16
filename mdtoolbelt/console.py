@@ -45,7 +45,7 @@ filter_parser.add_argument(
     "-ot", "--output_trajectory",
     help="Path to output trajectory file")
 filter_parser.add_argument(
-    "-sel", "--selection_string", required=True,
+    "-sel", "--selection_string",
     help="Atom selection formula")
 filter_parser.add_argument(
     "-syn", "--selection_syntax", default='vmd',
