@@ -152,6 +152,23 @@ sumup_parser.add_argument(
     "-is", "--input_structure", required=True,
     help="Path to input structure file")
 
+# The vmd2ndx command
+vmd2ndx_parser = subparsers.add_parser("vmd2ndx",
+    help="Generate a gromacs atom indices file from a VMD selection.\n" +
+        "Note that the default 'System' selection is conserved.")
+vmd2ndx_parser.add_argument(
+    "-is", "--input_structure", required=True,
+    help="Path to input structure file")
+vmd2ndx_parser.add_argument(
+    "-sel", "--atom_selection", required=True,
+    help="Atom selection string in VMD syntax")
+vmd2ndx_parser.add_argument(
+    "-ndx", "--ndx_filename", default='selection.ndx',
+    help="Path to output index file")
+vmd2ndx_parser.add_argument(
+    "-nam", "--selection_name", default='Selection',
+    help="Name of the selection inside the index file")
+
 args = parser.parse_args()
 
 def call():
@@ -241,6 +258,20 @@ def call():
     if tool == 'sumup':
         structure = Structure.from_pdb_file(args.input_structure)
         structure.display_summary()
+
+    if tool == 'vmd2ndx':
+        # Parse the structure file and the selection in the structure
+        structure = Structure.from_pdb_file(args.input_structure)
+        system_selection = structure.select_all()
+        selection = structure.select(args.atom_selection, syntax='vmd')
+        # Convert the selection to a ndx file gromacs can read
+        ndx_system_selection = system_selection.to_ndx('System')
+        ndx_selection = selection.to_ndx(args.selection_name)
+        ndx_filename = args.ndx_filename
+        with open(ndx_filename, 'w') as file:
+            file.write(ndx_system_selection)
+            file.write(ndx_selection)
+
 
 
     # Tool will always match one of the previous defined options
