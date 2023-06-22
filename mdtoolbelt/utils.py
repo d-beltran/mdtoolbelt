@@ -106,7 +106,15 @@ residue_name_letters = {
     'U': 'U',
     'U3': 'U',
     'U5': 'U',
-    'RU': 'U'
+    'RU': 'U',
+    'DA3': 'A',
+    'DA5': 'A',
+    'DT3': 'T',
+    'DT5': 'T',
+    'DC3': 'C',
+    'DC5': 'C',
+    'DG3': 'G',
+    'DG5': 'G',
 }
 
 # Given a residue name, return its single letter
