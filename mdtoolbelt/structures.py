@@ -1100,6 +1100,11 @@ class Structure:
     # Note that if a single atom from the residue is in the selection then the residue index is returned
     def get_selection_residue_indices (self, selection : 'Selection') -> List[int]:
         return list(set([ self.atoms[atom_index].residue_index for atom_index in selection.atom_indices ]))
+    
+    # Given a selection, get a list of chain indices for chains implicated
+    # Note that if a single atom from the chain is in the selection then the chain index is returned
+    def get_selection_chain_indices (self, selection : 'Selection') -> List[int]:
+        return list(set([ self.atoms[atom_index].chain_index for atom_index in selection.atom_indices ]))
 
     # Create a new structure from the current using a selection to filter atoms
     def filter (self, selection : Union['Selection', str], selection_syntax : str = 'vmd') -> 'Structure':
