@@ -24,6 +24,9 @@ except:
 # Set all available chains according to pdb standards
 available_caps = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
     'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+available_lows = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
+    'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
+available_chains = available_caps + available_lows
 
 # Set the expected number of bonds for each atom according to its element
 coherent_bonds_with_hydrogen = {
@@ -1235,8 +1238,6 @@ class Structure:
         fragment_getter = self.find_whole_fragments if whole_fragments else self.find_fragments
         for fragment in fragment_getter(selection):
             chain_name = self.get_next_available_chain_name()
-            if not chain_name:
-                raise SystemExit('ERROR: There are more chains than letters in the alphabet')
             fragment_selection = Selection(fragment)
             self.set_selection_chain_name(fragment_selection, chain_name)
 
@@ -1323,7 +1324,10 @@ class Structure:
     # If all letters in the alphabet are used already then return None
     def get_next_available_chain_name (self) -> Optional[str]:
         current_chain_names = [ chain.name for chain in self.chains ]
-        return next((name for name in available_caps if name not in current_chain_names), None)
+        next_available_chain_name = next((name for name in available_chains if name not in current_chain_names), None)
+        if next_available_chain_name == None:
+            raise SystemExit('ERROR: There are more chains than available chain letters (' + str(len(available_chains)) + ')')
+        return next_available_chain_name
 
     # Get a chain by its name
     def get_chain_by_name (self, name : str) -> 'Chain':
@@ -1375,10 +1379,12 @@ class Structure:
                         print('- Chain ' + chain_name + ' has ' + str(chains_count) + ' repeats' )
         # Rename repeated chains if requested
         if len(repeated_chains) > 0 and fix_chains:
-            if len(self.chains) > 26:
+            n_chains = len(self.chains)
+            n_available_chains = len(available_chains)
+            if n_chains > n_available_chains:
                 # for chain in self.chains:
                 #     print(str(chain) + ': ' + str(chain.atom_indices[0]) + ' to ' + str(chain.atom_indices[-1]))
-                raise ValueError('There are more chains than letters in the alphabet')
+                raise ValueError('There are more chains (' + str(n_chains) + ') than available chain letters (' + str(n_available_chains) + ')')
             current_letters = list(name_chains.keys())
             for repeated_chain in repeated_chains:
                 last_chain_letter = repeated_chain.name
@@ -1412,8 +1418,6 @@ class Structure:
             # Skip the first set of consecutive residues since they will stay in the original chain
             for residues_indices in overall_consecutive_residues[1:]:
                 chain_name = self.get_next_available_chain_name()
-                if not chain_name:
-                    raise SystemExit('ERROR: There are more chains than letters in the alphabet')
                 residues_selection = self.select_residue_indices(residues_indices)
                 self.set_selection_chain_name(residues_selection, chain_name)
 
