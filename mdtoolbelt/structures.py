@@ -1804,7 +1804,7 @@ def first_cap_only (name : str) -> str:
 
 # Guess an atom element from its name
 # DANI: Cuidado con añadir el calcio (Ca) a la lista, porque te cambia todo los carbonos alpha
-supported_elements = [ 'C', 'N', 'O', 'H', 'P', 'S', 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe', 'Br', 'Mn' ]
+supported_elements = [ 'C', 'N', 'O', 'H', 'P', 'S', 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe', 'Br', 'Mn', 'I' ]
 def guess_name_element (name: str) -> str:
     length = len(name)
     next_character = None
