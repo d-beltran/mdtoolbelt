@@ -110,6 +110,9 @@ subset_parser.add_argument(
 subset_parser.add_argument(
     "-skip", "--skip", nargs='*', type=int, default=[],
     help="Frames to be skipped")
+subset_parser.add_argument(
+    "-fr", "--frames", nargs='*', type=int, default=[],
+    help="Frames to be returned. Input frame order is ignored as original frame order is conserved.")
 
 # The nojump command
 nojump_parser = subparsers.add_parser("nojump",
@@ -232,7 +235,8 @@ def call():
             start=args.start,
             end=args.end,
             step=args.step,
-            skip=args.skip
+            skip=args.skip,
+            frames=args.frames
         )
 
     if tool == 'nojump':

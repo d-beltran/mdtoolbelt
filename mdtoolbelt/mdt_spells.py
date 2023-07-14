@@ -160,43 +160,56 @@ def get_trajectory_subset (
     start : int = 0,
     end : int = None,
     step : int = 1,
+    frames : List[int] = [],
     skip : List[int] = [],
 ):
-    print('dilo')
-    # We need an output trajectory filename
-    if not output_trajectory_filename:
-        raise SystemExit('Missing output trajectory filename')
-
-    # End must be grater than start
-    if end != None and end < start:
-        raise SystemExit('End frame must be posterior to start frame')
 
     # Load the trajectory frame by frame and get only the desired frames
     if input_structure_filename:
         trajectory = mdt.iterload(input_trajectory_filename, top=input_structure_filename, chunk=1)
     else:
         trajectory = mdt.iterload(input_trajectory_filename, chunk=1)
-    # Get the first chunk
+    # Set the reduced trajectory to be returned
     reduced_trajectory = None
-    frame_count = 0 # This count works only in case the start frame is out of range, for the logs
-    for i, chunk in enumerate(trajectory):
-        frame_count = i
-        if i == start:
-            reduced_trajectory = chunk
-            break
-    # If we have nothing at this point then it means our start is out of the frames range
-    if not reduced_trajectory:
-        frame_count += 1
-        raise SystemExit('The trajectory has ' + str(frame_count) + ' frames so we can not start at frame ' + str(start))
-    # Get further chunks
-    for i, chunk in enumerate(trajectory, 1): # Start the count at 1
-        frame = start + i
-        if frame in skip:
-            continue
-        if frame == end:
-            break
-        if i % step == 0:
-            reduced_trajectory = mdt.join([reduced_trajectory, chunk], check_topology=False)
+    # Specific frames scenario
+    # DANI: No se ha provado
+    if frames and len(frames) > 0:
+        # Get the first chunk
+        first_frame = None
+        for frame, chunk in enumerate(trajectory):
+            first_frame = frame
+            if frame in frames:
+                reduced_trajectory = chunk
+                break
+        # If we have nothing at this point then it means our start is out of the frames range
+        if not reduced_trajectory:
+            raise SystemExit('None of the selected frames are in range of the trajectory frames number')
+        # Get further chunks
+        for frame, chunk in enumerate(trajectory, first_frame + 1):
+            if frame in frames:
+                reduced_trajectory = mdt.join([reduced_trajectory, chunk], check_topology=False)
+    # Start / End / Step + Skip scenario
+    else:
+        # Get the first chunk
+        frame_count = 0 # This count works only in case the start frame is out of range, for the logs
+        for i, chunk in enumerate(trajectory):
+            frame_count = i
+            if i == start:
+                reduced_trajectory = chunk
+                break
+        # If we have nothing at this point then it means our start is out of the frames range
+        if not reduced_trajectory:
+            frame_count += 1
+            raise SystemExit('The trajectory has ' + str(frame_count) + ' frames so we can not start at frame ' + str(start))
+        # Get further chunks
+        for i, chunk in enumerate(trajectory, 1): # Start the count at 1
+            frame = start + i
+            if frame in skip:
+                continue
+            if frame == end:
+                break
+            if i % step == 0:
+                reduced_trajectory = mdt.join([reduced_trajectory, chunk], check_topology=False)
 
     # WARNING: This print here is not just a log. DO NOT REMOVE IT
     # WARNING: It fixes an error (ValueError: unitcell angle < 0) which happens sometimes

@@ -194,22 +194,15 @@ def get_trajectory_subset (
     start : int = 0,
     end : int = None,
     step : int = 1,
+    frames : List[int] = [],
     skip : List[int] = []
 ):
-    # We need an output trajectory filename
-    if not output_trajectory_filename:
-        raise SystemExit('Missing output trajectory filename')
-
-    # End must be grater than start
-    if end != None and end < start:
-        raise SystemExit('End frame must be posterior to start frame')
-
     # Set a list with frame indices from
-    frames = [ frame for frame in range(start, end, step) if frame not in skip ]
+    output_frames = frames if frames and len(frames) > 0 else [ frame for frame in range(start, end, step) if frame not in skip ]
 
     # Generate the ndx file to target the desired frames
     auxiliar_ndx_filename = '.frames.ndx'
-    generate_frames_ndx(frames, auxiliar_ndx_filename)
+    generate_frames_ndx(output_frames, auxiliar_ndx_filename)
 
     # Now run gromacs trjconv command in order to extract the desired frames
     p = Popen([
