@@ -1,4 +1,5 @@
 import pytraj as pyt
+from distutils.version import StrictVersion
 
 # Set pytraj supported formats
 pytraj_supported_structure_formats = {'prmtop', 'pdb', 'parm7', 'mol2', 'psf', 'cif', 'top', 'sdf'}
@@ -29,11 +30,11 @@ def get_pytraj_trajectory (
 def get_frames_count (
     input_topology_filename : str,
     input_trajectory_filename : str) -> int:
-    
+
     # Load the trajectory from pytraj
     pyt_trajectory = get_pytraj_trajectory(
-        input_trajectory_filename,
-        input_topology_filename)
+        input_topology_filename,
+        input_trajectory_filename)
 
     # Return the frames number
     return pyt_trajectory.n_frames
