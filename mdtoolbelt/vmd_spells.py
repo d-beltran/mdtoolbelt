@@ -15,13 +15,13 @@ commands_filename = '.commands.vmd'
 
 # List all the vmd supported trajectory formats
 vmd_supported_structure_formats = {'pdb', 'prmtop', 'psf', 'parm', 'gro'} # DANI: Esto lo he hecho rápido, hay muchas más
-vmd_supported_trajectory_formats = {'mdcrd', 'crd', 'dcd', 'xtc', 'trr', 'nc'}
+vmd_supported_trajectory_formats = {'mdcrd', 'crd', 'dcd', 'xtc', 'trr', 'nc', 'netcdf', 'cdf'}
 
 # Set a vmd format translator
 vmd_format = {
     'pdb': 'pdb',
     'prmtop': 'prmtop',
-    'psf': 'pdf',
+    'psf': 'psf',
     'gro': 'gro',
     'crd': 'crd',
     'mdcrd': 'crd',
@@ -30,6 +30,7 @@ vmd_format = {
     'trr': 'trr',
     'netcdf': 'netcdf',
     'nc': 'netcdf',
+    'cdf': 'netcdf'
 }
 
 # Given a vmd supported topology with no coordinates and a single frame file, generate a pdb file
