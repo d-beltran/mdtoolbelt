@@ -418,6 +418,9 @@ class Residue:
             self._classification = 'ion'
             return self._classification
         # -------------------------------------------------------------------------------------------------------
+        # At this point we need atoms to have elements fixed
+        # WARNING: missing elements would result in silent failure to recognize some classifications
+        self.structure.fix_atom_elements()
         # Solvent is water molecules
         if len(self.atom_indices) == 3:
             atom_elements = [ atom.element for atom in self.atoms ]
@@ -1774,6 +1777,61 @@ class Structure:
                 continue
             for ring in find_rings_recursive(atom_path=[candidate_atom]):
                 yield ring
+
+    # Given an atom selection, get all bonds between these atoms and any other atom in the structure
+    # Note that inner bonds between atoms in the selection are discarded
+    def get_selection_outer_bonds (self, selection : Selection) -> List[int]:
+        # Get bonds from all atoms in the selection
+        bonds = set()
+        for atom_index in selection.atom_indices:
+            atom_bonds = set(self.bonds[atom_index])
+            bonds = bonds.union(atom_bonds)
+        # Discard selection atoms from the bonds list to discard inner bonds
+        bonds -= set(selection.atom_indices)
+        return list(bonds)
+
+    # Set the type of PTM according to the classification of the bonded residue
+    ptm_options = {
+        'protein': ValueError('A PTM residue must never be protein'),
+        'nucleic': 'Nucleic acid linkage', # DANI: Esto es posible aunque muy raro y no se como se llama
+        'carbohydrate': 'Glycosilation',
+        'fatty': 'Lipidation',
+        'steroid': 'Steroid linkage', # DANI: Esto es posible aunque muy raro y no se como se llama
+        'ion': ValueError('A PTM residue must never be an ion'), # DANI: probablemente sea un error
+        'solvent': ValueError('A PTM residue must never be solvent'), # DANI: probablemente sea un error
+        'other': None, # Something not supported or capping terminals
+    }
+
+    # Find Post Translational Modifications (PTM) in the structure
+    def find_ptms (self) -> Generator[dict, None, None]:
+        # Find bonds between protein and non-protein atoms
+        protein_selection = self.select('protein', syntax='vmd')
+        protein_atom_indices = set(protein_selection.atom_indices) # This is used later
+        protein_outer_bonds = set(self.get_selection_outer_bonds(protein_selection))
+        non_protein_atom_indices = set(self.select('not protein', syntax='vmd').atom_indices)
+        non_protein_atom_indices_bonded_to_protein = protein_outer_bonds.intersection(non_protein_atom_indices)
+        # Get each residue bonded to the protein and based on its 'classification' set the name of the PTM
+        for atom_index in non_protein_atom_indices_bonded_to_protein:
+            atom = self.atoms[atom_index]
+            residue = atom.residue
+            residue_classification = residue.get_classification()
+            ptm_classification = self.ptm_options[residue_classification]
+            # If we found something impossible then raise the error
+            if type(ptm_classification) == ValueError:
+                raise ptm_classification
+            # If we do not know what it is then do tag it as a PTM but print a warning
+            if not ptm_classification:
+                print('WARNING: Unknow type of PTM: ' + str(residue))
+                continue
+            # At this point we have found a valid PTM
+            # Find the protein residue linked to this PTM
+            atom_bonds = self.bonds[atom_index]
+            protein_bond = next((bond for bond in atom_bonds if bond in protein_atom_indices), None)
+            if protein_bond == None:
+                raise ValueError('There must be at least one protein bond to the current atom')
+            protein_residue_index = self.atoms[protein_bond].residue_index
+            # Set the PTM
+            yield { 'name': ptm_classification, 'residue_index': protein_residue_index }
             
 
 ### Related functions ###
