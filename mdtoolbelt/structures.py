@@ -1810,7 +1810,10 @@ class Structure:
             return
         protein_atom_indices = set(protein_selection.atom_indices) # This is used later
         protein_outer_bonds = set(self.get_selection_outer_bonds(protein_selection))
-        non_protein_atom_indices = set(self.select('not protein', syntax='vmd').atom_indices)
+        non_protein_selection = self.select('not protein', syntax='vmd')
+        if not non_protein_selection:
+            return
+        non_protein_atom_indices = set(non_protein_selection.atom_indices)
         non_protein_atom_indices_bonded_to_protein = protein_outer_bonds.intersection(non_protein_atom_indices)
         # Get each residue bonded to the protein and based on its 'classification' set the name of the PTM
         for atom_index in non_protein_atom_indices_bonded_to_protein:
