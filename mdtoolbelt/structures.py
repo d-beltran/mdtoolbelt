@@ -1806,6 +1806,8 @@ class Structure:
     def find_ptms (self) -> Generator[dict, None, None]:
         # Find bonds between protein and non-protein atoms
         protein_selection = self.select('protein', syntax='vmd')
+        if not protein_selection:
+            return
         protein_atom_indices = set(protein_selection.atom_indices) # This is used later
         protein_outer_bonds = set(self.get_selection_outer_bonds(protein_selection))
         non_protein_atom_indices = set(self.select('not protein', syntax='vmd').atom_indices)
