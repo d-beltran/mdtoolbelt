@@ -1823,6 +1823,7 @@ class Structure:
             ptm_classification = self.ptm_options[residue_classification]
             # If we found something impossible then raise the error
             if type(ptm_classification) == ValueError:
+                print('Problematic residue: ' + str(residue))
                 raise ptm_classification
             # If we do not know what it is then do tag it as a PTM but print a warning
             if type(ptm_classification) == Warning:
