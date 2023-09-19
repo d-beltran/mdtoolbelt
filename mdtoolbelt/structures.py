@@ -1797,9 +1797,9 @@ class Structure:
         'carbohydrate': 'Glycosilation',
         'fatty': 'Lipidation',
         'steroid': 'Steroid linkage', # DANI: Esto es posible aunque muy raro y no se como se llama
-        'ion': ValueError('A PTM residue must never be an ion'), # DANI: probablemente sea un error
-        'solvent': ValueError('A PTM residue must never be solvent'), # DANI: probablemente sea un error
-        'other': None, # Something not supported or capping terminals
+        'ion': Warning('Ion is covalently bonded to protein'), # DANI: esto no es "correcto" pero si habitual
+        'solvent': Warning('Solvent is covalently bonded to protein'), # DANI: probablemente sea un error
+        'other': Warning('Unknow type of PTM'), # Something not supported or capping terminals
     }
 
     # Find Post Translational Modifications (PTM) in the structure
@@ -1825,8 +1825,8 @@ class Structure:
             if type(ptm_classification) == ValueError:
                 raise ptm_classification
             # If we do not know what it is then do tag it as a PTM but print a warning
-            if not ptm_classification:
-                print('WARNING: Unknow type of PTM: ' + str(residue))
+            if type(ptm_classification) == Warning:
+                print('WARNING: ' + str(ptm_classification) + ' -> ' + str(residue))
                 continue
             # At this point we have found a valid PTM
             # Find the protein residue linked to this PTM
