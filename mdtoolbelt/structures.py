@@ -406,6 +406,7 @@ class Residue:
     # - steroid
     # - ion
     # - solvent
+    # - acetyl
     # - other
     def get_classification (self) -> str:
         # Return the internal value, if any
@@ -420,7 +421,8 @@ class Residue:
         # -------------------------------------------------------------------------------------------------------
         # At this point we need atoms to have elements fixed
         # WARNING: missing elements would result in silent failure to recognize some classifications
-        self.structure.fix_atom_elements()
+        if self.structure._fixed_atom_elements == False:
+            self.structure.fix_atom_elements()
         # Solvent is water molecules
         if len(self.atom_indices) == 3:
             atom_elements = [ atom.element for atom in self.atoms ]
@@ -515,6 +517,11 @@ class Residue:
                 self._classification = 'fatty'
                 return self._classification
             already_checked_atoms += bonded_fatty_atoms
+        # -------------------------------------------------------------------------------------------------------
+        # Check if it is an acetylation capping terminal
+        if self.name == 'ACE':
+            self._classification = 'acetyl'
+            return self._classification
         # -------------------------------------------------------------------------------------------------------
         self._classification = 'other'
         return self._classification
@@ -712,6 +719,8 @@ class Structure:
         # Also the new atom order is saved
         self.trajectory_atom_sorter = None
         self.new_atom_order = None
+        # Track when atom elements have been fixed
+        self._fixed_atom_elements = False
 
     def __repr__ (self):
         return '<Structure (' + str(len(self.atoms)) + ' atoms)>'
@@ -994,6 +1003,8 @@ class Structure:
                 modified = True
         if modified:
             print('WARNING: Atom elements have been modified')
+        # Set atom elements as fixed in order to avoid repeating this process
+        self._fixed_atom_elements = True
         return modified
 
     # Generate a pdb file with current structure
@@ -1131,6 +1142,16 @@ class Structure:
         for atom_index in selection.atom_indices:
             atom_indices[atom_index] = None
         return Selection([ atom_index for atom_index in atom_indices if atom_index != None ])
+
+    # Get protein selection
+    # WARNING: Do not rely in VMD's "protein" selection since it misses terminal residues
+    # VMD considers protein any resiude including N, C, CA and O while terminals may have OC1 and OC2 instead of O
+    def get_protein_selection (self) -> 'Selection':
+        atom_indices = []
+        for residue in self.residues:
+            if residue.classification == 'protein':
+                atom_indices += residue.atom_indices
+        return Selection(atom_indices)
     
     # Given a selection, get a list of residue indices for residues implicated
     # Note that if a single atom from the residue is in the selection then the residue index is returned
@@ -1800,18 +1821,20 @@ class Structure:
         'steroid': 'Steroid linkage', # DANI: Esto es posible aunque muy raro y no se como se llama
         'ion': Warning('Ion is covalently bonded to protein'), # DANI: esto no es "correcto" pero si habitual
         'solvent': Warning('Solvent is covalently bonded to protein'), # DANI: probablemente sea un error
-        'other': Warning('Unknow type of PTM'), # Something not supported or capping terminals
+        'acetyl': 'Acetylation', # Typical N-capping terminals
+        'other': Warning('Unknow type of PTM'), # Something not supported
     }
 
     # Find Post Translational Modifications (PTM) in the structure
     def find_ptms (self) -> Generator[dict, None, None]:
         # Find bonds between protein and non-protein atoms
-        protein_selection = self.select('protein', syntax='vmd')
+        # First get all protein atoms
+        protein_selection = self.get_protein_selection()
         if not protein_selection:
             return
         protein_atom_indices = set(protein_selection.atom_indices) # This is used later
         protein_outer_bonds = set(self.get_selection_outer_bonds(protein_selection))
-        non_protein_selection = self.select('not protein', syntax='vmd')
+        non_protein_selection = self.invert_selection(protein_selection)
         if not non_protein_selection:
             return
         non_protein_atom_indices = set(non_protein_selection.atom_indices)
