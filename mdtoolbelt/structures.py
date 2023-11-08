@@ -50,6 +50,10 @@ coherent_bonds_without_hydrogen = {
 standard_water_residue_names = {'SOL', 'WAT', 'HOH', 'TIP'}
 standard_counter_ion_atom_names = {'K', 'NA', 'CL', 'CLA', 'SOD', 'POT'}
 
+# Set the limit of residue numbers according to PDB format (4 characters, starts count at 1)
+# This means the last number is 9999 and it is equivalent to index 9998
+pdb_last_decimal_residue_index = 9998
+
 # An atom
 class Atom:
     def __init__ (self,
@@ -254,13 +258,6 @@ class Residue:
         return hash((self._chain_index, self.number, self.icode))
         # WARNING: This is not susceptible to duplicated residues
         #return hash(tuple(self._atom_indices))
-
-    def same_inputs_as (self, other) -> bool:
-        return (
-            self.name == other.name and
-            self.number == other.number and
-            self.icode == other.icode
-        )
 
     # The parent structure (read only)
     # This value is set by the structure itself
@@ -912,6 +909,13 @@ class Structure:
         parsed_chains = []
         atom_index = -1
         residue_index = -1
+        last_chain_name = None
+        last_residue_name = None
+        last_residue_number = None
+        last_residue_icode = None
+        # Set whenever we have reached the limit of residue numbers
+        # Thus further residue numbers must be parsed as hexadecimals
+        hexadecimal_residue_numbers = False
         pdb_lines = pdb_content.split('\n')
         for line in pdb_lines:
             # Parse atoms only
@@ -923,7 +927,7 @@ class Structure:
             atom_name = line[11:16].strip()
             residue_name = line[17:21].strip()
             chain = line[21:22]
-            residue_number = int(line[22:26])
+            residue_number = line[22:26]
             icode = line[26:27]
             if icode == ' ':
                 icode = ''
@@ -933,14 +937,18 @@ class Structure:
             element = line[76:78].strip()
             # Set the parsed atom, residue and chain
             parsed_atom = Atom(name=atom_name, element=element, coords=(x_coord, y_coord, z_coord))
-            parsed_residue = Residue(name=residue_name, number=residue_number, icode=icode)
-            parsed_chain = Chain(name=chain)
             # Add the parsed atom to the list and update the current atom index
             parsed_atoms.append(parsed_atom)
             atom_index += 1
-            # Check if we are in the same chain/residue than before
-            same_chain = parsed_chains and parsed_chains[-1] == parsed_chain
-            same_residue = same_chain and parsed_residues and parsed_residue.same_inputs_as(parsed_residues[-1])
+            # Check if this atom belongs to the same chain than the previous atom
+            same_chain = last_chain_name == chain
+            # Check if this atom belongs to the same residue than the previous atom
+            same_residue = same_chain and last_residue_name == residue_name and last_residue_number == residue_number and last_residue_icode == icode
+            # Update last values
+            last_chain_name = chain
+            last_residue_name = residue_name
+            last_residue_number = residue_number
+            last_residue_icode = icode
             # Update the residue atom indices
             # If the residue equals the last parsed residue then use the previous instead
             if same_residue:
@@ -949,16 +957,27 @@ class Structure:
                 # If it is the same residue then it will be the same chain as well so we can proceed
                 continue
             # Otherwise, include the new residue in the list and update the current residue index
+            # When residue index is greater than the limit we start using the hexadecimal parsing
+            # Note that residue index 9998 equals residue number 9999 which is the last allowed
+            if residue_index == pdb_last_decimal_residue_index:
+                hexadecimal_residue_numbers = True
+            # Parse the residue number
+            parsed_residue_number = int(residue_number, 16) if hexadecimal_residue_numbers else int(residue_number)
+            # Now parse the residue and add it to the list
+            parsed_residue = Residue(name=residue_name, number=parsed_residue_number, icode=icode)
             parsed_residues.append(parsed_residue)
             residue_index += 1
+            # Add current atom to the new residue
             parsed_residue.atom_indices.append(atom_index)
             # If the chain equals the last parsed chain then use the previous instead
             if same_chain:
                 parsed_chain = parsed_chains[-1]
                 parsed_chain.residue_indices.append(residue_index)
                 continue
-            # Otherwise, include the new chain in the list
+            # Otherwise, parse the chain and include the new chain in the list
+            parsed_chain = Chain(name=chain)
             parsed_chains.append(parsed_chain)
+            # Add current atom to the new chain
             parsed_chain.residue_indices.append(residue_index)
         return cls(atoms=parsed_atoms, residues=parsed_residues, chains=parsed_chains)
 
@@ -1008,7 +1027,7 @@ class Structure:
         return modified
 
     # Generate a pdb file with current structure
-    def generate_pdb_file(self, pdb_filename : str):
+    def generate_pdb_file (self, pdb_filename : str):
         with open(pdb_filename, "w") as file:
             file.write('REMARK mdtoolbelt generated pdb file\n')
             for a, atom in enumerate(self.atoms):
@@ -1019,6 +1038,9 @@ class Structure:
                 chain = atom.chain
                 chain_name = atom.chain.name.rjust(1) if chain else 'X'
                 residue_number = str(residue.number).rjust(4) if residue else '0'.rjust(4)
+                # If residue number is longer than 4 characters then we must parse to hexadecimal
+                if len(residue_number) > 4:
+                    residue_number = hex(residue.number)[2:].rjust(4)
                 icode = residue.icode.rjust(1) if residue else ' '
                 coords = atom.coords
                 x_coord, y_coord, z_coord = [ "{:.3f}".format(coord).rjust(8) for coord in coords ]
