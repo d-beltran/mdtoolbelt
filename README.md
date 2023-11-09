@@ -14,7 +14,7 @@ Convert structure and trajectory files from one format to another
 ```python
 from mdtoolbelt.conversions import convert
 
-convert(input_trajectory_filename='trajectory.xtc', output_trajectory_filename='trajectory.dcd')
+convert(input_trajectory_filepath='trajectory.xtc', output_trajectory_filepath='trajectory.dcd')
 ```
 
 ### Bash

@@ -11,6 +11,7 @@ from .selections import Selection
 from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
 from .mdt_spells import sort_trajectory_atoms
 from .utils import is_imported, residue_name_to_letter
+from .auxiliar import InputError
 
 import pytraj
 # Import these libraries if they are available
@@ -868,7 +869,7 @@ class Structure:
     def from_prody(cls, prody_topology):
         # In we do not have prody in our environment then we cannot proceed
         if not is_imported('prody'):
-            raise SystemExit('Missing dependency error: prody')
+            raise InputError('Missing dependency error: prody')
         parsed_atoms = []
         parsed_residues = []
         parsed_chains = []
@@ -985,9 +986,9 @@ class Structure:
     @classmethod
     def from_pdb_file (cls, pdb_filename : str):
         if not os.path.exists(pdb_filename):
-            raise SystemExit('File "' + pdb_filename + '" not found')
+            raise InputError('File "' + pdb_filename + '" not found')
         if not get_format(pdb_filename) == 'pdb':
-            raise SystemExit('"' + pdb_filename + '" is not a name for a pdb file')
+            raise InputError('"' + pdb_filename + '" is not a name for a pdb file')
         # Read the pdb file
         pdb_content = None
         with open(pdb_filename, 'r') as file:
@@ -1056,7 +1057,7 @@ class Structure:
     def get_prody_topology (self):
         # In we do not have prody in our environment then we cannot proceed
         if not is_imported('prody'):
-            raise SystemExit('Missing dependency error: prody')
+            raise InputError('Missing dependency error: prody')
         # Generate the prody topology
         pdb_filename = '.structure.pdb'
         self.generate_pdb_file(pdb_filename)
@@ -1064,11 +1065,11 @@ class Structure:
         os.remove(pdb_filename)
         return prody_topology
 
-     # Get the structure equivalent pytraj topology
+    # Get the structure equivalent pytraj topology
     def get_pytraj_topology (self):
         # In we do not have pytraj in our environment then we cannot proceed
         if not is_imported('pytraj'):
-            raise SystemExit('Missing dependency error: pytraj')
+            raise InputError('Missing dependency error: pytraj')
         # Generate a pdb file from the current structure to feed pytraj
         pdb_filename = '.structure.pdb'
         self.generate_pdb_file(pdb_filename)
@@ -1095,7 +1096,7 @@ class Structure:
         if syntax == 'prody':
             # In we do not have prody in our environment then we cannot proceed
             if not is_imported('prody'):
-                raise SystemExit('Missing dependency error: prody')
+                raise InputError('Missing dependency error: prody')
             prody_topology = self.get_prody_topology()
             prody_selection = prody_topology.select(selection_string)
             if not prody_selection:
@@ -1104,7 +1105,7 @@ class Structure:
         if syntax == 'pytraj':
             # In we do not have pytraj in our environment then we cannot proceed
             if not is_imported('pytraj'):
-                raise SystemExit('Missing dependency error: pytraj')
+                raise InputError('Missing dependency error: pytraj')
             pytraj_topology = self.get_pytraj_topology()
             pytraj_selection = pytraj_topology[selection_string]
             atom_indices = [ atom.index for atom in pytraj_selection.atoms ]
@@ -1112,7 +1113,7 @@ class Structure:
                 return None
             return Selection(atom_indices)
 
-        raise SystemExit('Syntax ' + syntax + ' is not supported. Choose one of the following: vmd, prody, pytraj')
+        raise InputError('Syntax ' + syntax + ' is not supported. Choose one of the following: vmd, prody, pytraj')
 
     # Set a function to make selections using atom indices
     def select_atom_indices (self, atom_indices : List[int]) -> 'Selection':
@@ -1120,7 +1121,7 @@ class Structure:
         atom_count = len(self.atoms)
         for atom_index in atom_indices:
             if atom_index >= atom_count:
-                raise SystemExit('Atom index ' + str(atom_index) + ' is out of range (' + str(atom_count) + ')')
+                raise InputError('Atom index ' + str(atom_index) + ' is out of range (' + str(atom_count) + ')')
         return Selection(atom_indices)
 
     # Set a function to make selections using residue indices
@@ -1188,7 +1189,7 @@ class Structure:
     # Create a new structure from the current using a selection to filter atoms
     def filter (self, selection : Union['Selection', str], selection_syntax : str = 'vmd') -> 'Structure':
         if not selection:
-            raise SystemExit('No selection was passed')
+            raise InputError('No selection was passed')
         # In case the selection is not an actual Selection, but a string, parse the string into a Selection
         if type(selection) == str:
             selection = self.select(selection, selection_syntax)
@@ -1373,7 +1374,7 @@ class Structure:
         current_chain_names = [ chain.name for chain in self.chains ]
         next_available_chain_name = next((name for name in available_chains if name not in current_chain_names), None)
         if next_available_chain_name == None:
-            raise SystemExit('ERROR: There are more chains than available chain letters (' + str(len(available_chains)) + ')')
+            raise InputError('There are more chains than available chain letters (' + str(len(available_chains)) + ')')
         return next_available_chain_name
 
     # Get a chain by its name
@@ -1943,8 +1944,7 @@ def guess_name_element (name: str) -> str:
         # Finally, try with the first character alone
         if character in supported_elements:
             return character
-    raise SystemExit(
-        "ERROR: Not recognized element in '" + name + "'")
+    raise InputError("Not recognized element in '" + name + "'")
 
 # Set a special iteration system
 # Return one value of the array and a new array with all other values for each value

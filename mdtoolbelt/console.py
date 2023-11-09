@@ -192,10 +192,10 @@ def call():
             args.input_trajectories = []
         # Run the convert command
         convert(
-            input_structure_filename=args.input_structure,
-            output_structure_filename=args.output_structure,
-            input_trajectory_filenames=args.input_trajectories,
-            output_trajectory_filename=args.output_trajectory,
+            input_structure_filepath=args.input_structure,
+            output_structure_filepath=args.output_structure,
+            input_trajectory_filepaths=args.input_trajectories,
+            output_trajectory_filepath=args.output_trajectory,
         )
 
     # In case the filter tool was called
