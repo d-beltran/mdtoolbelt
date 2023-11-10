@@ -29,6 +29,10 @@ available_lows = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
     'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 available_chains = available_caps + available_lows
 
+# Elements supported while correcting atom elements
+supported_polymer_elements = [ 'C', 'N', 'O', 'H', 'P', 'S' ]
+supported_ion_elements = [ 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe', 'Br', 'Mn', 'I', 'Ca' ]
+
 # Set the expected number of bonds for each atom according to its element
 coherent_bonds_with_hydrogen = {
     'H': { 'min': 1, 'max': 1 },
@@ -222,6 +226,48 @@ class Atom:
         if connected_oxygens_count != 1:
             return False
         return True
+
+    # Check if it is an ion by checking if it has no bonds with other atoms
+    def is_ion (self) -> bool:
+        return len(self.bonds) == 0
+
+    # Guess an atom element from its name and the fact that it is the unique atom in the residue (i.e. an ion) or not
+    def guess_element (self) -> str:
+        # Set the supported elements according to if it is an ion or not
+        # Note that this distinction between ion and polymer elements allows to support elements like calcium
+        # Otherwise all alpha carbon, whose name is CA, would be considered as calcium
+        # Another example is ligands with nitrogens called 'NA' which would be considered as sodium
+        supported_elements = supported_ion_elements if self.is_ion() else supported_polymer_elements
+        # Get the atom name and its characters length
+        name = self.name
+        length = len(name)
+        next_character = None
+        for i, character in enumerate(name):
+            # Get the next character, since element may be formed by 2 letters
+            if i < length - 1:
+                next_character = name[i+1]
+                # If next character is not a string then ignore it
+                if not next_character.isalpha():
+                    next_character = None
+            # Try to get all possible matches between the characters and the supported atoms
+            # First letter is always caps
+            character = character.upper()
+            # First try to match both letters together
+            if next_character:
+                # Start with the second letter in caps
+                next_character = next_character.upper()
+                both = character + next_character
+                if both in supported_elements:
+                    return both
+                # Continue with the second letter in lowers
+                next_character = next_character.lower()
+                both = character + next_character
+                if both in supported_elements:
+                    return both
+            # Finally, try with the first character alone
+            if character in supported_elements:
+                return character
+        raise InputError("Not recognized element in '" + name + "'")
 
 # A residue
 class Residue:
@@ -1011,7 +1057,7 @@ class Structure:
                     modified = True
                 # Check the element to match what we would guess from the atom name
                 # In case it does not just warn the user
-                guess = guess_name_element(atom.name)
+                guess = atom.guess_element()
                 if atom.element != guess:
                     print('WARNING: Suspicious element for atom ' + atom.name + ' -> ' + atom.element + " (shoudn't it be " + guess + "?)")
                     if not trust:
@@ -1019,7 +1065,7 @@ class Structure:
                         modified = True
             # If elements are missing then guess them from atom names
             else:
-                atom.element = guess_name_element(atom.name)
+                atom.element = atom.guess_element()
                 modified = True
         if modified:
             print('WARNING: Atom elements have been modified')
@@ -1912,39 +1958,6 @@ def first_cap_only (name : str) -> str:
     first_character = name[0].upper()
     second_character = name[1].lower()
     return first_character + second_character
-
-# Guess an atom element from its name
-# DANI: Cuidado con añadir el calcio (Ca) a la lista, porque te cambia todo los carbonos alpha
-supported_elements = [ 'C', 'N', 'O', 'H', 'P', 'S', 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe', 'Br', 'Mn', 'I' ]
-def guess_name_element (name: str) -> str:
-    length = len(name)
-    next_character = None
-    for i, character in enumerate(name):
-        # Get the next character, since element may be formed by 2 letters
-        if i < length - 1:
-            next_character = name[i+1]
-            # If next character is not a string then ignore it
-            if not next_character.isalpha():
-                next_character = None
-        # Try to get all possible matches between the characters and the supported atoms
-        # First letter is always caps
-        character = character.upper()
-        # First try to match both letters together
-        if next_character:
-            # Start with the second letter in caps
-            next_character = next_character.upper()
-            both = character + next_character
-            if both in supported_elements:
-                return both
-            # Continue with the second letter in lowers
-            next_character = next_character.lower()
-            both = character + next_character
-            if both in supported_elements:
-                return both
-        # Finally, try with the first character alone
-        if character in supported_elements:
-            return character
-    raise InputError("Not recognized element in '" + name + "'")
 
 # Set a special iteration system
 # Return one value of the array and a new array with all other values for each value
