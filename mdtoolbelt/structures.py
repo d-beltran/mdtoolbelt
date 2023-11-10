@@ -12,6 +12,7 @@ from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
 from .mdt_spells import sort_trajectory_atoms
 from .utils import is_imported, residue_name_to_letter
 from .auxiliar import InputError
+from .constants import SUPPORTED_POLYMER_ELEMENTS, SUPPORTED_ION_ELEMENTS
 
 import pytraj
 # Import these libraries if they are available
@@ -28,10 +29,6 @@ available_caps = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
 available_lows = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
     'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']
 available_chains = available_caps + available_lows
-
-# Elements supported while correcting atom elements
-supported_polymer_elements = [ 'C', 'N', 'O', 'H', 'P', 'S' ]
-supported_ion_elements = [ 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe', 'Br', 'Mn', 'I', 'Ca' ]
 
 # Set the expected number of bonds for each atom according to its element
 coherent_bonds_with_hydrogen = {
@@ -237,7 +234,7 @@ class Atom:
         # Note that this distinction between ion and polymer elements allows to support elements like calcium
         # Otherwise all alpha carbon, whose name is CA, would be considered as calcium
         # Another example is ligands with nitrogens called 'NA' which would be considered as sodium
-        supported_elements = supported_ion_elements if self.is_ion() else supported_polymer_elements
+        supported_elements = SUPPORTED_ION_ELEMENTS if self.is_ion() else SUPPORTED_POLYMER_ELEMENTS
         # Get the atom name and its characters length
         name = self.name
         length = len(name)
