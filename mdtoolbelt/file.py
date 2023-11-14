@@ -50,6 +50,8 @@ class File:
         self.pytraj_parm_format = PYTRAJ_PARM_FORMAT.get(self.format, None)
 
     def __repr__ (self) -> str:
+        if not self.filename:
+            return '< No file >'
         return '< File ' + self.filename + ' >'
 
     def __str__ (self) -> str:
