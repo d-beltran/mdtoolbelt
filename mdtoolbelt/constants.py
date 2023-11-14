@@ -58,3 +58,4 @@ PYTRAJ_PARM_FORMAT = {
 # Elements supported while correcting atom elements
 SUPPORTED_POLYMER_ELEMENTS = set([ 'C', 'N', 'O', 'H', 'P', 'S' ])
 SUPPORTED_ION_ELEMENTS = set([ 'K', 'F', 'Cl', 'Na', 'Zn', 'Mg', 'Fe', 'Br', 'Mn', 'I', 'Ca' ])
+SUPPORTED_ELEMENTS = SUPPORTED_POLYMER_ELEMENTS.union(SUPPORTED_ION_ELEMENTS)

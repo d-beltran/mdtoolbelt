@@ -12,7 +12,7 @@ from .vmd_spells import get_vmd_selection_atom_indices, get_covalent_bonds
 from .mdt_spells import sort_trajectory_atoms
 from .utils import is_imported, residue_name_to_letter
 from .auxiliar import InputError
-from .constants import SUPPORTED_POLYMER_ELEMENTS, SUPPORTED_ION_ELEMENTS
+from .constants import SUPPORTED_POLYMER_ELEMENTS, SUPPORTED_ION_ELEMENTS, SUPPORTED_ELEMENTS
 
 import pytraj
 # Import these libraries if they are available
@@ -229,12 +229,17 @@ class Atom:
         return len(self.bonds) == 0
 
     # Guess an atom element from its name and the fact that it is the unique atom in the residue (i.e. an ion) or not
-    def guess_element (self) -> str:
-        # Set the supported elements according to if it is an ion or not
-        # Note that this distinction between ion and polymer elements allows to support elements like calcium
-        # Otherwise all alpha carbon, whose name is CA, would be considered as calcium
-        # Another example is ligands with nitrogens called 'NA' which would be considered as sodium
-        supported_elements = SUPPORTED_ION_ELEMENTS if self.is_ion() else SUPPORTED_POLYMER_ELEMENTS
+    def guess_element (self, flexible : bool = False) -> str:
+        # Set the supported elements
+        if flexible:
+            # If we are flexible then allow all defined elements
+            supported_elements = SUPPORTED_ELEMENTS
+        else:
+            # Set the supported elements according to if it is an ion or not
+            # Note that this distinction between ion and polymer elements allows to support elements like calcium
+            # Otherwise all alpha carbon, whose name is CA, would be considered as calcium
+            # Another example is ligands with nitrogens called 'NA' which would be considered as sodium
+            supported_elements = SUPPORTED_ION_ELEMENTS if self.is_ion() else SUPPORTED_POLYMER_ELEMENTS
         # Get the atom name and its characters length
         name = self.name
         length = len(name)
@@ -264,6 +269,9 @@ class Atom:
             # Finally, try with the first character alone
             if character in supported_elements:
                 return character
+        # If we did not try with the flexible solve yet then give it a last try
+        if not flexible:
+            return self.guess_element(flexible=True)
         raise InputError("Not recognized element in '" + name + "'")
 
 # A residue
