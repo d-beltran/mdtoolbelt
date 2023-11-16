@@ -1777,7 +1777,9 @@ class Structure:
         atom_copies = [ atom.copy() for atom in self.atoms ]
         residue_copies = [ residue.copy() for residue in self.residues ]
         chain_copies = [ chain.copy() for chain in self.chains ]
-        return Structure(atom_copies, residue_copies, chain_copies)
+        structure_copy = Structure(atom_copies, residue_copies, chain_copies)
+        structure_copy.bonds = [ [ atom_index for atom_index in atom_bonds ] for atom_bonds in self.bonds ]
+        return structure_copy
 
     # Merge currnet structure with another structure
     # DANI: No lo he testeado en profundidad
