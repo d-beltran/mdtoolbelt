@@ -84,3 +84,13 @@ class File:
         if not standard_file.exists:
             symlink(self.relative_path, standard_file.path)
         return standard_file
+
+    # Set this file a symlink to another file
+    def set_symlink_to (self, other_file : 'File'):
+        # Self file must not exist
+        if self.exists:
+            raise Exception('Cannot set a symlink from an already existing file: ' + str(self))
+        # Note that symlink path must be relative to this file
+        relative_path = relpath(other_file.path, self.basepath)
+        # Set the symlink
+        symlink(relative_path, self.path)
