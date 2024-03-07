@@ -172,6 +172,9 @@ def get_trajectory_subset (
     # Set the reduced trajectory to be returned
     reduced_trajectory = None
     # Specific frames scenario
+    sorted_frames = sorted(frames)
+    # Use last frame as the end in case it is lower than the explicit end
+    end = min(end, sorted_frames[-1])
     # DANI: No se ha provado
     if frames and len(frames) > 0:
         # Get the first chunk
@@ -186,8 +189,11 @@ def get_trajectory_subset (
             raise SystemExit('None of the selected frames are in range of the trajectory frames number')
         # Get further chunks
         for frame, chunk in enumerate(trajectory, first_frame + 1):
+            print('Frame ' + str(frame), end='\r')
             if frame in frames:
                 reduced_trajectory = mdt.join([reduced_trajectory, chunk], check_topology=False)
+            if frame > end:
+                break
     # Start / End / Step + Skip scenario
     else:
         # Get the first chunk
@@ -204,6 +210,7 @@ def get_trajectory_subset (
         # Get further chunks
         for i, chunk in enumerate(trajectory, 1): # Start the count at 1
             frame = start + i
+            print('Frame ' + str(frame), end='\r')
             if frame in skip:
                 continue
             if frame == end:
